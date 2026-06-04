@@ -1,0 +1,31 @@
+# Ignore everything by default
+*
+
+# Exceptions
+!.gitignore
+!CLAUDE.md
+!COMMANDS.md
+!MCP.md
+!MODES.md
+!ORCHESTRATOR.md
+!PERSONAS.md
+!RULES.md
+!settings.json
+
+# Directories
+!skills/
+skills/**
+!skills/*/
+!skills/*/SKILL.md
+
+!commands/
+!commands/**
+
+!hooks/
+!hooks/**
+
+!mcp/
+!mcp/**
+
+!scheduled-tasks/
+!scheduled-tasks/**

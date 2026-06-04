@@ -1,0 +1,1 @@
+Look at the current git diff (staged and unstaged), write a concise conventional commit message, and commit all changes.
