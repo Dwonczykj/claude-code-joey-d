@@ -1,9 +1,16 @@
 ---
 name: collect-slack-episodes
-description: Collect Slack messages I sent in the last 24h into Obsidian _episodes/
+description: Collect Slack messages I sent since the previous successful run into Obsidian _episodes/
 ---
 
-Collect Slack activity authored BY ME from the last 24 hours and write one episode file per message into the Obsidian vault.
+Collect Slack activity authored BY ME since the previous successful run and write one episode file per message into the Obsidian vault.
+
+WINDOW DETERMINATION (do this BEFORE any collection):
+- STATE_FILE: /Users/joey/.claude/scheduled-tasks/collect-slack-episodes/last-successful-run.txt
+- At start, read STATE_FILE. If it exists and contains a valid ISO 8601 timestamp, set `window_start` to that timestamp. Otherwise default `window_start` to (fire_time − 24h), but on Mondays default to (fire_time − 72h) to cover the weekend.
+- Clamp: if `window_start` is older than (fire_time − 14 days), set it to (fire_time − 14 days) and note the clamp in the final report.
+- Collection window = [window_start, fire_time]. Use this window throughout in place of "last 24h".
+- At END, ONLY after the run has completed without error, overwrite STATE_FILE with `fire_time` formatted as ISO 8601 with offset. If the run errored partway, DO NOT update STATE_FILE so the next run picks back up from the same point.
 
 === IDENTITY (HARD FILTER — ONLY MY MESSAGES) ===
 Slack user email: joey.dwonczyk@fyxer.com
@@ -12,7 +19,7 @@ Only emit episodes for messages where the AUTHOR is me. Do NOT emit episodes for
 
 EPISODES_DIR: /Users/joey/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/_episodes
 
-SOURCE: Slack MCP (slack-by-salesforce). Use search/standup tools to find messages I authored in the last 24h. If the server isn't connected, use ToolSearch to load its tools first.
+SOURCE: Slack MCP (slack-by-salesforce). Use search/standup tools to find messages I authored within the collection window. If the server isn't connected, use ToolSearch to load its tools first.
 
 For each message I personally sent in the window:
 1. Verify author == me before writing anything.
@@ -41,7 +48,7 @@ Rules:
 - HARD RULE: drop any message whose author is not me, even if it appeared in search results.
 - One episode per message I authored (multiple replies in the same thread → multiple episode files).
 - Never write outside EPISODES_DIR.
-- If Slack MCP is unavailable, write YYYY-MM-DD-slack-NORUN.md noting the failure and exit cleanly.
-- Cut-off: last 24 hours from fire time.
+- If Slack MCP is unavailable, write YYYY-MM-DD-slack-NORUN.md noting the failure and exit cleanly. Do NOT update STATE_FILE in this case.
+- Cut-off: the [window_start, fire_time] range determined above. Do not use a hardcoded 24h.
 
-Report: count written, count skipped, count rejected for not-mine.
+Report: count written, count skipped, count rejected for not-mine, the `window_start`/`window_end` used, and whether STATE_FILE was updated.
