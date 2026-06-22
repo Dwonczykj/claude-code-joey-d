@@ -1,9 +1,9 @@
 ---
 name: synthesize-relationships
-description: Synthesize person relationships from the day's episodes into per-person observation files with provenance, dedup, and evolving prose
+description: Synthesize person relationships from the day's episodes into per-person observation files with provenance, dedup, evolving prose, and researched durable bios
 ---
 
-Synthesize person-relationship observations from the day's episodes into one markdown file per person, with full provenance, identifier-based deduplication, and an evolving prose synthesis of how I know each person.
+Synthesize person-relationship observations from the day's episodes into one markdown file per person, with full provenance, identifier-based deduplication, an evolving prose synthesis of how I know each person, and a durable per-person bio researched from web (Exa) + full Gmail/Slack history + episodes + hand-edited seed.
 
 === IDENTITY ===
 Me: Joey Dwonczyk
@@ -119,12 +119,19 @@ If file does not exist, create it with this exact structure (preserving the SYNT
   co_occurred_with: []
   synthesis_last_run: null
   synthesis_episode_count: 0
+  bio_source: none
+  bio_last_generated: null
+  bio_last_tweaked: null
   ---
 
   # <display_name>
 
-  <!-- BIO: hand-edited. Routine never touches. -->
-  _(no bio yet)_
+  <!-- BIO:HUMAN — hand-edited seed facts. Routine reads these as input but NEVER overwrites them. -->
+  _(none)_
+
+  <!-- BIO:START — managed by routine. source: none · last_generated: null. Edits here will be overwritten. -->
+  _(awaiting bio generation)_
+  <!-- BIO:END -->
 
   <!-- SYNTHESIS:START — managed by relationships routine, edits will be overwritten -->
   ## How I know them & what they're up to
@@ -139,7 +146,7 @@ If file does not exist, create it with this exact structure (preserving the SYNT
   ## Notes
   <!-- hand-edited scratchpad, routine never touches -->
 
-For both new and existing files, update them as follows (always preserving the BIO block above SYNTHESIS:START and the Notes block):
+For both new and existing files, update them as follows (always preserving the BIO:HUMAN block, the routine-owned BIO:START/END block — only Step 7.5 writes it — and the Notes block):
 
 A) Frontmatter:
   - Merge any new identifiers (emails, github, slack ids/handles, linkedin) into the arrays — deduplicate, never remove existing entries.
@@ -195,7 +202,38 @@ Wrap the block exactly between `<!-- SYNTHESIS:START -->` and `<!-- SYNTHESIS:EN
 
 Then update frontmatter: `synthesis_last_run: <ISO 8601>`, `synthesis_episode_count: <total episode bullets in file>`.
 
-NEVER touch content above `<!-- SYNTHESIS:START -->` (preserves user-edited bio) or below `## Notes` (preserves user scratchpad).
+NEVER touch the BIO:HUMAN block, the BIO:START/END block (owned by Step 7.5), or content below `## Notes` (preserves user scratchpad). This step only rewrites content between `<!-- SYNTHESIS:START -->` and `<!-- SYNTHESIS:END -->`.
+
+=== STEP 7.5: BIO MAINTENANCE ===
+The BIO is a durable identity + relationship-arc description of the person, distinct from the rolling SYNTHESIS block (which is recent activity). It lives in the routine-owned BIO:START/END region. The BIO:HUMAN region above it is hand-edited seed — the routine reads it as a high-priority input but NEVER writes to it.
+
+MIGRATION (first touch of a legacy file): if a file still carries the old `<!-- BIO: hand-edited. Routine never touches. -->` marker and lacks BIO:HUMAN/BIO:START markers, convert it once: move any text between that old marker and `<!-- SYNTHESIS:START` into a new BIO:HUMAN block (use `_(none)_` if that text is empty or the `_(no bio yet)_` placeholder), then insert an empty BIO:START/END block below it (`_(awaiting bio generation)_`). Add `bio_source: none`, `bio_last_generated: null`, `bio_last_tweaked: null` to frontmatter if absent.
+
+ELIGIBILITY: a person is bio-eligible IFF `strength >= 2` (≥3 episodes in the last 90 days) OR their BIO:HUMAN block is non-empty (you have signalled they matter).
+
+SELECTION (cap 5 full regens per run): from bio-eligible people, build the work queue in priority order:
+  1. Empty bios — `bio_source == none` or the BIO:START block is still the `_(awaiting bio generation)_` placeholder.
+  2. Full-regen due — `bio_source == auto` AND `bio_last_generated` is ≥30 days before fire_time.
+Take at most 5. Skip `bio_source: auto` bios whose `bio_last_generated` is <30 days old (they may still get a cheap tweak — see below). Anyone past the cap waits for a future run; record the queued count in the log.
+
+SOFT BUDGET: a full-regen gather is heavy (multiple external searches). If this run has already been going >20 minutes when you reach a not-yet-started full regen, stop starting new full regens, queue the remainder, and note it in the log. Cheap tweaks may still proceed.
+
+FULL REGEN (each selected person, ≤5) — gather read-only context:
+  - `slack_read_user_profile` on their slack_user_id for canonical name + title, when available.
+  - Exa web search anchored on display_name + company + role + linkedin handle; fetch the top corroborating result(s).
+  - Gmail `search_threads` by each known email — all-time, capped to the ~50 newest threads; read enough to extract durable facts. SKIP this pull when the person's ONLY known emails are on the internal domain (the domain of my own email — fyxer.com): internal colleagues' comms live in Slack/GitHub, so the inbox adds little, and the budget is better spent on contacts with an external-domain email. Note the skip in the provenance line as `0 email threads (internal-only, skipped)`.
+  - Slack search by slack_handle / slack_user_id — all-time, capped to the ~50 newest messages.
+  - Every episode bullet already linked in the file.
+  - The BIO:HUMAN seed.
+  WRONG-PERSON GUARD: fold in a web fact ONLY when the source is corroborated by company, role, or linkedin. If identity cannot be corroborated, build the bio from email + slack + episodes + human-seed only and add the note `_(no public profile confirmed)_`. Never attribute a web fact to the person on name alone.
+  WRITE: replace the BIO:START/END contents with an identity + relationship-arc prose bio (≤~10 sentences) covering: who they are (background, career, public/professional profile); how Joey knows them at an enduring level; and the overall arc of the relationship. BIO:HUMAN facts take precedence on any conflict. Cite every web claim with a source link and every relationship claim with `[ep:<basename>]`. First line inside the markers: `_Bio generated <YYYY-MM-DD> · sources: web(<domains>), <N> email threads, <M> slack msgs, <K> episodes · human-seed: yes|no._` Update the BIO:START comment to `source: auto · last_generated: <date>`. Set frontmatter `bio_source: auto`, `bio_last_generated: <YYYY-MM-DD>`.
+  FRONTMATTER BACKFILL (corroborated identities only): if the web/profile identity passed the wrong-person guard, also fill NULL frontmatter fields from it — set `role` if currently null (the verified job title), set `company` if currently null, and add the corroborated LinkedIn handle to `identifiers.linkedin` if null (it will flow into the index on the Step 8 rebuild). NEVER overwrite a non-null value — those may be hand-edited.
+
+CHEAP TWEAK (no external calls; for `bio_source == auto` people NOT selected for full regen): if an in-window episode attests a MATERIAL change — a job / role / company change, a significant new project, or an attested personal life event — rewrite the BIO:START/END prose in place to incorporate only that new fact (with its `[ep:...]` cite), preserving the rest. Bump `bio_last_tweaked: <YYYY-MM-DD>`. Do NOT change `bio_last_generated` (the 30-day full-regen clock keeps running). Anything not material → no tweak; it stays visible in SYNTHESIS only.
+
+DEGRADE GRACEFULLY: if a connector (Exa, Gmail, Slack) is unavailable this run, proceed with whatever sources are available, note which were skipped in the bio provenance line, and still set `bio_last_generated` so the cadence advances. Never fail the run because an external search failed.
+
+Atomic write as with all person files. This step touches ONLY the BIO:START/END region — never BIO:HUMAN, SYNTHESIS, Episodes, Co-occurrences, or Notes.
 
 === STEP 8: REBUILD _index.json ===
 After all person files are updated, rebuild INDEX_FILE from scratch by reading the frontmatter of every `*.md` file in RELS_DIR (excluding files starting with `_`). Populate by_email, by_github, by_slack_id, by_slack_handle, by_linkedin, by_alias_normalized, and slugs. Preserve `known_distinct` from the previous index. Write atomically (write to a tmp file then rename).
@@ -213,6 +251,9 @@ Append a section to LOG_FILE:
   - merges resolved this run: <d>
   - unresolved name-only mentions: <e>
   - synthesis blocks rewritten: <f>
+  - bios generated (full regen): <g>
+  - bios tweaked: <h>
+  - bios queued (over cap / budget): <i>
   - clamp applied: <yes/no>
 
 === STEP 10: STATE FILE ===
@@ -224,13 +265,16 @@ On full success only, overwrite STATE_FILE with window_end (ISO 8601 with offset
 - Idempotent within a window: re-running this routine with the same window must produce the same final state (no duplicate episode bullets, no duplicate identifiers).
 - Never invent identifiers. Only record what appears verbatim in an episode.
 - Never auto-merge persons; merges are gated on a resolved pending-merge file.
-- If RELS_DIR is missing, create it and treat the index as empty. If zero in-window episodes, write a log entry and exit cleanly with STATE_FILE updated.
+- The BIO:HUMAN block is hand-edited seed: read it as a high-priority bio input, never write to it. The routine owns only the BIO:START/END block.
+- Bio full regens are read-only on the outside world (Exa, Gmail, Slack are reads) — the only writes remain inside OBSERVATIONS_DIR. Full regen runs at most every 30 days per person, max 5 per run, gated on `strength >= 2` OR a non-empty BIO:HUMAN block.
+- If RELS_DIR is missing, create it and treat the index as empty. If zero in-window episodes, still run bio maintenance (empty/overdue bios may exist), then write a log entry and exit cleanly with STATE_FILE updated.
 - Do not run typecheck, lint, or tests. Do not commit anything.
 
 === REPORT ===
 At the end, print:
 - path to RELS_DIR
-- counts: episodes scanned, mentions extracted, persons created, persons updated, merges queued, unresolved names, synthesis rewrites
+- counts: episodes scanned, mentions extracted, persons created, persons updated, merges queued, unresolved names, synthesis rewrites, bios generated, bios tweaked, bios queued
 - the window used and whether STATE_FILE was updated
 - a one-line list of newly-created slugs
 - a one-line list of any pending merges that need my review
+- a one-line list of slugs whose bio was generated or tweaked this run

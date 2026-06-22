@@ -38,12 +38,27 @@ If there are no commits ahead of the base branch, stop and tell the user there i
 
 If there are uncommitted changes, warn the user and ask if they want to commit them first before continuing.
 
-## Phase 4: Draft the PR title and body
+## Phase 4: Link to a Linear issue (Context Pod)
+
+1. Invoke `/linear-list-my-context-pod-issues` to fetch open issues assigned to the user in Context Pod Q2 2026. Show the list inline.
+2. Use `AskUserQuestion` to ask:
+
+   > "Is this PR linked to an existing Context Pod Linear issue, or should I create a new one?"
+
+   Options: **Pick existing** / **Create new** / **Skip — no Linear issue**
+
+3. If **Pick existing**: ask the user to provide the issue identifier (e.g. `PRE-123`). Call `mcp__ac8e4a0b-1ec5-4ab5-8b10-e46579796632__get_issue` with that identifier to resolve the URL. Store the identifier + URL for use in the PR body.
+
+4. If **Create new**: invoke `/linear-create-context-pod-issue`. The title/description should be derived from the commits and diff already gathered. Use the returned identifier + URL in the PR body.
+
+5. If **Skip**: continue without a Linear reference.
+
+## Phase 5: Draft the PR title and body
 
 Read the commits and diff to write:
 
 - **Title**: conventional-commit style matching the project convention (`feat:`, `fix:`, `chore:`, `experiment:`). Under 70 chars. No apostrophes.
-- **Body**: use this template:
+- **Body**: use this template (include the Linear line only if a Linear issue was resolved in Phase 4):
 
 ```
 ## Summary
@@ -55,12 +70,14 @@ Read the commits and diff to write:
 - [ ] <test step 1>
 - [ ] <test step 2>
 
+Linear: <PRE-123 url>   ← omit this line if no Linear issue
+
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 Keep the summary to 1–3 bullets covering what changed and why. Keep the test plan to concrete, checkable steps.
 
-## Phase 5: Push and create the PR
+## Phase 6: Push and create the PR
 
 First push the branch if it isn't already on the remote:
 
@@ -81,7 +98,7 @@ EOF
 )"
 ```
 
-## Phase 6: deploy-qa label (web-app only)
+## Phase 7: deploy-qa label (web-app only)
 
 If the repo is `Fyxer-AI/web-app`, use `AskUserQuestion` to ask:
 
@@ -94,7 +111,7 @@ If yes:
 gh pr edit --add-label "deploy-qa"
 ```
 
-## Phase 7: Report back
+## Phase 8: Report back
 
 Return the PR URL so the user can click through to it.
 

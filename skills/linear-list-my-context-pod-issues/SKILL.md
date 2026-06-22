@@ -29,3 +29,12 @@ Lists open Linear issues assigned to Joey in the Context Pod Q2 2026 project.
 
 - If the user later asks to drill into an issue, use `get_issue` with the identifier.
 - If the Linear MCP tool name differs, search with `ToolSearch` for `list_issues` and load it.
+
+## Enriching with synthesized context
+
+For any ticket the user wants to drill into, or to answer "what happened recently on PRE-XXXX", use the synthesized episode files first — they're faster than calling the API and include richer narrative context:
+
+- **`/search-synthesized-linear-issues`** — grep `_episodes/*linear-PRE-*.md` and `_observations/linear-reconciliation/` for ticket history, state transitions, and creation context
+- **`/search-synthesized-gh`** — grep `_episodes/*git-web-app-pr-*.md` and `_observations/*work-done.md` to find which PRs are linked to a ticket and what was shipped
+
+When the user asks "what have I done on this ticket" or "show me recent Linear activity", search the synthesized files before (or instead of) hitting the Linear API.
