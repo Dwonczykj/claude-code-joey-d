@@ -1,6 +1,7 @@
 ---
 name: webapp-failed-actions-hourly
-description: Hourly check for failed deploy GitHub Actions in Fyxer-AI/web-app (any author on main, Dwonczykj-only on staging); alert via Slack DM with details in a thread.
+description: Every 3 hours on weekdays (9am-6pm), check for failed deploy GitHub Actions in Fyxer-AI/web-app (any author on main, Dwonczykj-only on staging); alert via Slack DM with details in a thread.
+model: sonnet
 ---
 
 You monitor failed deploy GitHub Actions in the `Fyxer-AI/web-app` repository and alert Joey (GitHub login `Dwonczykj`, email joey.dwonczyk@fyxer.com) on Slack. Use the connected GitHub and Slack tools.

@@ -57,6 +57,8 @@ Run the same query as `/linear-list-my-context-pod-issues`: `list_issues` with `
 
 Capture per issue: identifier (PRE-xxx), title, state (name + type), url, updatedAt, priority.
 
+**"Awaiting deploy" counts as DONE from my point of view.** A staging merge is the end of my delivery — the staging→prod pipeline is not my work. So treat any ticket in the **Awaiting deploy** state (and, equivalently, **Done**) as shipped: it belongs in the "Did last week / Shipped" bucket, **not** in "Still in flight". Only tickets whose PR is genuinely still open (or that have no PR yet) are in-flight. When fetching, include Awaiting-deploy tickets in the shipped set the same way Done tickets are included.
+
 ### 2. Enrich with synthesized history (last-week window)
 
 For the last-week window, gather what I actually did:
@@ -65,6 +67,24 @@ For the last-week window, gather what I actually did:
 - `ls` + grep `*linear-PRE-*.md` and `*git-web-app-pr-*.md` episodes in the last-week date range; keep only ones where the actor is me (`actor_email: joey.dwonczyk@fyxer.com` / `Dwonczykj`, or `claude-code` which is inherently mine).
 
 Match work items to tickets by explicit PRE-xxx in commits/PR/branch/episode (high confidence) → PR-to-issue link → title similarity (require ≥2 distinctive shared terms; bare verbs don't count).
+
+### 2b. Sweep ALL my open PRs (not just the active window)
+
+The synthesized episodes + recently-merged query only surface work tied to a ticket that moved in the window. Long-lived **open** PRs — and PRs whose ticket is stale or missing entirely — fall through. So always also run, across **every** repo I touch (`web-app`, `eval`, `desktop-app`, and any other Fyxer-AI repo referenced this week):
+
+```
+gh pr list --repo Fyxer-AI/<repo> --author Dwonczykj --state open \
+  --json number,title,state,isDraft,reviewDecision,baseRefName,headRefName,url,createdAt,updatedAt,body --limit 100
+```
+
+For each open PR, resolve its ticket: scan the PR `body` for a `linear.app/.../issue/PRE-xxx` URL or a bare `PRE-xxx` / `Closes PRE-xxx`, else fall back to the title-similarity rule above. Then classify and fold into the buckets:
+
+- **Linked to a ticket already in the doc** → it's covered; just make sure the card carries the PR chip.
+- **Linked to a ticket NOT in the doc** (its ticket sat outside the active window — e.g. Backlog/Awaiting-deploy untouched recently) → add the ticket as an in-flight card with the PR chip. Note when the PR's ticket and the PR diverge (e.g. PR is a follow-on to a ticket whose earlier PR already shipped).
+- **No ticket at all** → add an in-flight card flagged `no ticket yet` (dark chip) and treat it as a step-5 ticket-creation candidate.
+- **Stale** (open > ~21 days, or `updatedAt` > ~14 days ago) → additionally flag under a "Stale open PRs — review or close" group and add it to the decision-callout count. These are the most likely to have been silently dropped.
+
+This sweep is the authoritative source for the **In flight** bucket — never rely on synthesized episodes alone to populate it.
 
 ### 3. Draft the three buckets (itemised, short)
 
@@ -86,7 +106,7 @@ Produce a compact markdown doc. Every line is a **short item** — a terse phras
 - (to confirm with you below)
 ```
 
-For "did last week", include both Done-this-week tickets and untracked work surfaced from synthesis (flag untracked items — they're candidates for step 5). For "still in flight", list tickets in In Progress / In Review that did NOT complete last week. Leave "tackling this week" provisional until the interview.
+For "did last week", include Done-this-week tickets, **Awaiting-deploy tickets (a staging merge = done from my POV — see step 1)**, and untracked work surfaced from synthesis (flag untracked items — they're candidates for step 5). For "still in flight", list only tickets whose PR is genuinely still open or that have no PR yet — **never** put an Awaiting-deploy ticket here. Leave "tackling this week" provisional until the interview.
 
 ### 4. Interview me to lock in this week
 
@@ -131,7 +151,7 @@ Only after I confirm in step 4. For each new item I asked to track:
 
 **Guardrails**: never create more than 5 tickets per run (list the rest as "deferred — would have created"). Never invent identifiers — only cite IDs returned by a real `save_issue` call. This routine creates, comments, and applies state transitions (step 4b only); it never deletes, re-projects a ticket, or touches an issue assigned to someone else.
 
-### 6. Save the doc + Slack it to me
+### 6. Save the doc + Slack it to me + emit Lightfern kanban HTML
 
 Once the "tackling this week" section is filled in (each item carrying its reason) and any new tickets are created, persist the finished doc in two places:
 
@@ -162,7 +182,57 @@ Once the "tackling this week" section is filled in (each item carrying its reaso
 
 **b. Slack self-message.** Send the **same** doc body (markdown, the part after the frontmatter) to myself via `slack_send_message` with `channel_id: U08G4A2GR89` (my own Slack user id — DMing yourself uses your user_id as the channel). The tool accepts standard markdown (`**bold**`, links, lists, headers), so send it as-is — no HTML conversion needed. If the body exceeds the 5000-char limit, trim the least-important detail rather than splitting; the buckets and ticket links are the priority. Return the message link.
 
-Finally, print to the terminal: the `OUTPUT_FILE` path, the Slack message link, an explicit list of any Linear tickets created (PRE-xxx + URL), and an explicit list of state transitions applied (PRE-xxx: OldState → NewState) so I can audit at a glance.
+**c. Lightfern kanban HTML (always emit).** Render a 3-column kanban view of the same buckets via the `/fyxer-doc` skill, themed with the bundled Lightfern palette override (soft fern greens — **never** Fyxer orange/parchment for this output).
+
+**Pre-step (PR metadata fetch).** Before building the body, collect every unique PR ref that will appear on a card. The set is the **union** of (a) the open-PR sweep from step 2b — which already pulled my open PRs across every repo, so reuse that result rather than re-querying — and (b) every merged/closed PR referenced by a card (from synthesized episodes, ticket attachments, and the merged-since-window query). For any ref not already fetched, call:
+
+```
+gh pr view <n> --repo Fyxer-AI/<repo> --json number,title,state,isDraft,mergedAt,closedAt,reviewDecision,headRefName,baseRefName,url
+```
+
+Aggregate into a single JSON map keyed by either the bare PR number (for web-app) or `<repo>#<n>` (for external repos):
+
+```jsonc
+{
+  "10037": {"n":10037,"t":"…","s":"MERGED","d":false,"r":"APPROVED","b":"staging","h":"joey…","u":"https://…","m":"2026-06-23T…","c":null,"repo":"web-app"},
+  "desktop-app#506": {"n":506,"t":"…","s":"OPEN","d":false,"r":null,"b":"main","h":"…","u":"https://…","m":null,"c":null,"repo":"desktop-app"}
+}
+```
+
+Inline this map verbatim into the body as `<script id="pr-info-data" type="application/json">…</script>`. The bundled hover-tooltip JS auto-discovers `.tag.merged`, `.tag.open`, `.tag.stacked`, `.tag.draft` chips whose textContent matches `(repo#)?N+`, looks them up in `PR_INFO`, and renders a dark popover with PR number, state pill (Merged / Open / Draft / Closed), approval pill (Approved / Changes requested / Pending review), branch refs `head → base`, and the merge/close date. Clicking a chip opens the PR in a new tab and stops propagation so the card's own click handler isn't triggered.
+
+- **Output path:** `/Users/joey/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/_observations/pod-sync-prep/{YYYY-Www}-pod-sync-prep.html` plus a copy at `…/pod-sync-prep/latest.html`.
+- **Author the body fragment** (no `<html>`/`<head>` — fyxer-doc wraps it):
+  - A summary strip at the top: 4 `.pill` tiles with counts (Done · In flight · This week · Transitions).
+  - A `<section class="kanban">` containing three `<div class="kanban-col" data-col="done|flight|this">` blocks — each col gets an `<h3>` with title + `<span class="count">N</span>`, then one `<article class="kanban-card">` per ticket. Card structure:
+    ```html
+    <article class="kanban-card">
+      <a href="LINEAR_URL"><span class="pre-id">PRE-2829</span></a>
+      <div class="title">PR-5 import_email_attachments backend</div>
+      <div class="meta">
+        <span class="tag epic">epic:PRE-2789</span>
+        <span class="tag deploy">PR #10042</span>
+      </div>
+    </article>
+    ```
+  - Use tags semantically: `win` (green) for experiment wins, `urgent` (red) for P0/Urgent priority, `deploy` (blue) for awaiting-deploy, `epic` (amber) for parent epic links, default fern-mist for everything else.
+  - Inside the "Tackling this week" column, prefix theme groups with `<div class="theme-section">Theme N — …</div>` between card runs so the themes from step 4 stay legible.
+- **Build invocation:**
+  ```
+  python3 ~/.claude/skills/fyxer-doc/build.py \
+    --title "Pod sync prep — week of {Mon YYYY-MM-DD}" \
+    --eyebrow "Context Pod · weekly" \
+    --subtitle "{N tickets · {N} transitions applied · generated {ISO}}" \
+    --theme white \
+    --logo none \
+    --extra-css ~/.claude/skills/prepare-pod-sync-linear/lightfern.css \
+    --body /tmp/pod-sync-kanban-body.html \
+    --out "/path/to/{YYYY-Www}-pod-sync-prep.html"
+  ```
+  Pass `--logo none` (the Fyxer logo is brand-orange and would clash with the Lightfern theme). Pass `--theme white` so the base white surface picks up the Lightfern overrides cleanly.
+- **No Slack upload** for the HTML — it's for the vault and local browsing only. Slack still gets the markdown body from step 6b.
+
+Finally, print to the terminal: the markdown `OUTPUT_FILE` path, the HTML kanban path, the Slack message link, an explicit list of any Linear tickets created (PRE-xxx + URL), and an explicit list of state transitions applied (PRE-xxx: OldState → NewState) so I can audit at a glance.
 
 ## Notes
 
