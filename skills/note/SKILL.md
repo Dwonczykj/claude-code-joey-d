@@ -107,9 +107,11 @@ Clip external content (URLs or images) into the wiki as searchable, cross-refere
 6. Append to `_wiki/log.md`
 
 **Handling multiple sources:**
-- Process each URL/image sequentially
-- Create a separate note for each source
-- After all are processed, do a single batch update to `_wiki/index.md` and `_wiki/log.md`
+- **Multiple URLs → fan out into parallel sub-agents (one per URL).** Launch them in a single message so they run concurrently. Give each sub-agent one URL and instruct it to: fetch the page, write the clip note (frontmatter + original summary + Key Takeaways per the flow above), and **return only a token-efficient headline** back to the main agent — a compact digest (~2-4 lines: title, 3-5 key themes/entities/claims as keywords), NOT the full note body.
+- Once all sub-agents return, the main agent reads the collected headlines and **links the articles to each other**: add `[[wikilinks]]` and `related:` frontmatter between the new notes wherever they share references, themes, or ideas. This cross-linking is the main agent's job precisely because it sees all headlines at once — the sub-agents are blind to each other.
+- Images (or a single URL): process sequentially in the main agent, no fan-out needed.
+- Create a separate note for each source.
+- After all are processed, do a single batch update to `_wiki/index.md` and `_wiki/log.md`.
 
 **Flags:**
 - `--batch` — Skip per-item confirmation, process all sources automatically
