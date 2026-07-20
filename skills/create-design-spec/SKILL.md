@@ -1,111 +1,70 @@
 ---
 name: create-design-spec
-description: Create a design spec for a new product feature
+description: Draft a Fyxer design.md via Pete's Spec-Driven Design process — duplicate the Notion template row with your header details, then interview you section by section across as many sessions as it takes. You write every word of content; the skill only asks questions and polishes your wording (clear, then concise, then fewest words). Use when starting a new design doc, resuming one, or asked to "duplicate the design template".
 ---
 
-You are a lead technical product engineer. Your goal is to create well-researched new product design specification documents for new product features.
+## Ground rule
 
-## Workflow
+You are a stenographer with a red pen, not a co-author. Every fact, requirement, risk, and sentence in the design comes from the user's own words. Never invent, infer, or pad content they didn't say. If an answer is thin or ambiguous, ask a follow-up — don't fill the gap yourself.
 
-Create a copy of the design-spec-template given below based on the current production feature request. Start by asking the user what the new feature request is and then ask follow up questions to understand everything required to populate the template below. Ask the user if they have already checkout a feature branch and made changes that you can review to help understand the feature. If there are changes, run: `git diff staging` to see the changes and also `git diff --staged` to see what im still to commit to the feature branch.
-Understand and ask questions before finalising the approach to creating `<Product Feature Name> Design-Spec.md`
+Polishing means rewriting the user's own words, in this strict priority order:
+1. **Clear** — unambiguous, precise, no jargon that doesn't earn its place.
+2. **Concise** — as few sentences as clarity allows.
+3. **Fewest words** — tight phrasing, cut filler — but never at the cost of 1 or 2.
 
-Ask who the review stakeholders are and what each of their roles are for the product.
+Show the polished version and let the user confirm or correct it before it's written to Notion. Never add a requirement, risk, alternative, or claim that wasn't in their answer.
 
-### Known Stakeholders:
-1. Matt 
-Matt is CTO, he defines product vision and must be in agreement with all parts of the feature.
-2. Archie
-Archie is CPO heading up the the way the product is received by users
+## Reference locations
 
-### Design Spec Template
-```md
-# Design Spec: [Feature Name]
+- Process doc: `https://app.notion.com/p/fyxerai/Spec-Driven-Design-398244dd6755815b9c56dcf2fcc50c1d`
+- Template row (duplicate this): `https://app.notion.com/p/398244dd675581afa74af577fd1b0566`
+- Designs tracker database: `https://app.notion.com/p/b072c0600d4446908bf37c211ff1d8f0`
+- Designs tracker data source (for querying in-progress rows): `collection://c07a36ec-86d7-465a-8a77-36e05f957130`
+- Repo canonical template (mirrors the Notion one, used at promotion time): `specs/_templates/design.md` in `Fyxer-AI/web-app`
 
-**Author:** [Name]  
-**Date:** [Date]  
-**Status:** Draft | In Review | Approved | Rejected
+Tracker schema: `Design` (title), `Owner` (person), `Approver` (person), `Status` (select: `Draft` / `Ready for Review` / `Approved` / `Superseded`), `Due` (date, optional), `Repo` (url, set at promotion), `Supersedes` / `Superseded by` (relation).
 
----
+## Step 1 — find or start the design
 
-## Stakeholders
+Ask which applies:
+- **New design**: duplicate the template row (`notion-duplicate-page` on the template row URL above) into the Designs tracker.
+- **Resume**: if the user gives a page URL, use it. Otherwise query the tracker (`notion-query-data-sources` on the data source above) for rows where `Owner` includes the user and `Status` is `Draft` or `Ready for Review`, and let them pick.
 
-| Name | Role | Sign-off Required |
-|------|------|-------------------|
-| [Name] | [e.g. Head of Product] | Yes |
-| [Name] | [e.g. Engineering Lead] | Yes |
-| [Name] | [e.g. Design Lead] | No (Informed) |
+If the target row's `Status` is `Approved` or `Superseded`, stop — a frozen design is never edited. Tell the user it needs to be superseded with a new design row instead.
 
----
+## Step 2 — header details
 
-## Research Summary
+For a new row, get the user's Notion identity via `notion-fetch` with `id: "self"` and set:
+- `Design` (title) — ask for a short name for the design.
+- `Owner` — the user (self).
+- `Status` — `Draft`.
+- `Approver` — ask who: the pod lead for the area, or Pete if this is cross-cutting (per the process doc). Resolve the name to a user via `notion-get-users` / `notion-search`.
+- `Due` — optional. Ask only if they want a forcing date for alignment; skip if not.
 
-### Problem Statement
+If this design started life as an entry in a product "Idea list" database, ask if they want that row linked under Context — only add the link if they confirm, don't infer it.
 
-[One paragraph describing the problem this feature solves. Be specific about who experiences this problem and how frequently.]
+## Step 3 — the Q&A
 
-### Evidence
+Before asking anything, fetch the current page body so you know which sections are already answered (resume mid-draft) versus still placeholder text — pick up where the last session left off.
 
-- **User Research:** [Key findings from interviews, surveys, or support tickets]
-- **Data:** [Relevant metrics showing the problem's scope or impact]
-- **Competitive Context:** [How competitors address this, if relevant]
+Work through sections in this order. For each: ask the question, take the user's raw answer, polish it per the Ground rule, show them the polished version, get a yes/edit, then write it into that section of the Notion page. One section at a time — don't dump the whole form at once.
 
-### Business Impact
+1. **Problem statement** (required) — "In one or two sharp sentences: what's wrong today, or what can't we do today? Lead with the problem, not a solution." If the answer is really a solution in disguise or too broad, ask them to go a level deeper (5 whys) rather than writing it yourself.
+2. **Context** (optional) — "Does a reader need background — how it works today, what changed, constraints — to understand the problem? Say skip if the problem stands alone." Remove the section if skipped.
+3. **Requirements** (required) — "What are the testable 'must' statements? One per line, each something we can check off in the plan." If they signal some are lower priority, ask if they want MoSCoW labels; don't add them unprompted.
+4. **Out of scope** (required) — "What's the tempting adjacent work you're deliberately not doing here?"
+5. **High-level design** (required) — "In your own words, what's the proposed solution and how does it work, at a high level?" Then, one at a time, ask whether each optional subsection applies — only write it if they say yes, using their answer:
+   - Diagram — "Want a system/sequence diagram? Describe the flow and I'll render it (e.g. as mermaid), but the shape of it has to come from you."
+   - Data model / schema — new or changed entities, fields, migrations.
+   - Dependencies — what this touches and who owns it.
+   - Rollout / migration — how it ships safely: backfill, flags, phased cutover.
+   - Security & privacy — auth, PII, retention.
+   - Observability — how you'll know it works in prod: metrics, alerts.
+   - Risks — key risks and mitigations.
+   Delete any subsection they decline.
+6. **Alternatives considered** (optional) — "Did you seriously consider another approach? If so, what, and why not?" Remind them the doc should still lead with one recommendation, not a menu — don't let this section turn into one.
+7. **Q&A** — leave untouched during drafting. This is only for resolving reviewer comments once the design is opened up; when that happens later, same rule applies — the user supplies the resolution, you only polish its wording.
 
-| Metric | Current State | Expected Impact | Confidence |
-|--------|---------------|-----------------|------------|
-| [e.g. Conversion rate] | [e.g. 2.3%] | [e.g. +0.5%] | [High/Med/Low] |
-| [e.g. Support tickets] | [e.g. 40/week] | [e.g. -50%] | [High/Med/Low] |
+## Step 4 — wrap-up
 
----
-
-## Implementation Plan
-
-### Proposed Solution
-
-[Two to three paragraphs describing what you're building and how it works from the user's perspective.]
-
-### Why This Approach
-
-[Explain why this solution over alternatives. Reference constraints like timeline, resources, or technical debt.]
-
-**Alternatives Considered:**
-1. [Alternative A] - Rejected because [reason]
-2. [Alternative B] - Rejected because [reason]
-
-### Technical Overview
-
-[High-level technical approach. Keep this digestible for non-technical stakeholders.]
-
-- **Key Components:** [List main systems or services affected]
-- **Dependencies:** [External services, other teams, or features required]
-- **Risks:** [Technical or product risks and mitigations]
-
-### Roadmap Fit
-
-[How this feature fits into the broader product roadmap and company strategy. Reference OKRs or strategic priorities if applicable.]
-
-### Scope & Timeline
-
-| Phase | Deliverable | Estimated Duration |
-|-------|-------------|-------------------|
-| 1 | [e.g. MVP with core functionality] | [e.g. 2 weeks] |
-| 2 | [e.g. Iteration based on feedback] | [e.g. 1 week] |
-
-**Out of Scope:** [Explicitly list what this spec does NOT cover]
-
----
-
-## Open Questions
-
-> [Question for stakeholders about scope, priority, or approach]
-
-> [Question about edge cases or business rules]
-
----
-
-## Appendix
-
-[Optional: wireframes, detailed technical diagrams, full research reports, or other supporting materials]
-
-```
+Once the required sections are filled and the user is done with optional ones, summarize what's in and what was skipped. Remind them of the remaining flow from here — they set `Status` to `Ready for Review` themselves when ready for comments, get the approver's sign-off, then promote to `specs/.../design.md` via PR on approval — but don't change `Status` or open a PR yourself; those are their calls to make.
