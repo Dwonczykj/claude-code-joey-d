@@ -40,7 +40,7 @@ For every bot comment, independently confirm whether it is real:
 2. Read the **surrounding + supporting code** the claim depends on — the functions it names, callers, callees, types, and any framework seam (e.g. "the model only receives X" → find where X is assembled and confirm what's passed). A claim about runtime behavior must be traced to the code that produces that behavior.
 3. Decide and write a one-line verdict per comment:
    - **Real** — reproduced from the code; explain the issue and *why it affects the product/feature*.
-   - **Not worth fixing** — technically a nit, intentional, or the cost outweighs the benefit; say why.
+   - **Not worth fixing** — weigh the fix against the code it adds. Decline when guarding the edge case costs more code than the edge case costs in practice: a branch, null-guard, or config toggle added for an input that can't occur, or whose failure is trivial and self-correcting. A PR that grows to satisfy a linter-bot is a worse PR. Say why (intentional / can't-occur / cost outweighs benefit).
    - **Stale** — already fixed in a later commit, or refers to code no longer present.
    - **Wrong** — the bot misread the code; cite the evidence that refutes it.
 

@@ -1,6 +1,8 @@
 ---
 name: screenshot-to-notes
 description: Process daily CleanShot screenshots into Obsidian wiki notes (72h lookback on Mondays, 24h otherwise)
+model: sonnet
+effort: medium
 ---
 
 You are processing Joey's daily screenshots into his Obsidian wiki. Follow these steps exactly:

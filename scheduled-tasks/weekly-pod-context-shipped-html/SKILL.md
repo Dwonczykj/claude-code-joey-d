@@ -1,6 +1,8 @@
 ---
 name: weekly-pod-context-shipped-html
 description: Generate a Fyxer-branded weekly HTML of Pod-Context product changes (all 4 members) and draft a summary message to #pod-context (do not send)
+model: sonnet
+effort: medium
 ---
 
 Generate a Fyxer-branded interactive HTML report of THIS WEEK's Pod-Context product changes across all four pod members. Read primarily from synthesized POD-WORK OBSERVATIONS — fall back to raw git/gh only for changes not yet covered. Draft (do NOT send) a summary message to #pod-context.

@@ -1,6 +1,8 @@
 ---
 name: read-technical-leadership-doc
 description: One-time Monday 7am reminder to read the Technical Leadership doc
+model: sonnet
+effort: medium
 ---
 
 Remind Joey to read the "Technical Leadership — What Makes a Good Leader" doc this morning.

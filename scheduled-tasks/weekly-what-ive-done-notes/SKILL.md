@@ -1,6 +1,8 @@
 ---
 name: weekly-what-ive-done-notes
 description: Review my week from notes and record everything i have worked on and the business value of that work
+model: sonnet
+effort: medium
 ---
 
 This is a routine that runs every Monday morning.

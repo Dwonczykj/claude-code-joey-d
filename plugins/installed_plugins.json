@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "plugins": {
+    "telegram@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/claude-plugins-official/telegram/0.0.7",
+        "version": "0.0.7",
+        "installedAt": "2026-04-07T08:01:17.915Z",
+        "lastUpdated": "2026-08-25T21:25:32.997Z"
+      }
+    ],
+    "ponytail@ponytail": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/ponytail/ponytail/4.8.4",
+        "version": "4.8.4",
+        "installedAt": "2026-06-29T07:14:38.059Z",
+        "lastUpdated": "2026-06-29T07:14:38.059Z",
+        "gitCommitSha": "bc9ee949d5f439e8b9f3bb92c6d6d3d1e6ebd324"
+      }
+    ],
+    "antigravity@antigravity": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/antigravity/antigravity/0.1.0",
+        "version": "0.1.0",
+        "installedAt": "2026-08-18T09:16:28.012Z",
+        "lastUpdated": "2026-08-18T09:16:28.012Z",
+        "gitCommitSha": "2d937fe6d6cd80fed8f44848b3a1b5444a03030b"
+      }
+    ],
+    "sf@sf": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/sf/sf/0.1.0",
+        "version": "0.1.0",
+        "installedAt": "2026-08-26T07:49:55.821Z",
+        "lastUpdated": "2026-08-26T07:49:55.821Z"
+      }
+    ]
+  }
+}

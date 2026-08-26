@@ -1,6 +1,8 @@
 ---
 name: verify-chat-turn-analytics-staging
 description: Verify the new "Chat turn analytics" telemetry from web-app PR #9946 is emitting correctly in staging logs.
+model: sonnet
+effort: medium
 ---
 
 Verify that the new per-turn chat telemetry from Fyxer-AI/web-app PR #9946 ("feat: Better turn based tool analytics on chat agent") is working correctly in the staging environment.

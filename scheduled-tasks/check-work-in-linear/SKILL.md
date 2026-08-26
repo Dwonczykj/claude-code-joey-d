@@ -1,6 +1,8 @@
 ---
 name: check-work-in-linear
 description: Reconcile my synthesized weekly work against my Linear tickets and actively update / create them so Linear reflects current reality
+model: sonnet
+effort: medium
 ---
 
 Reconcile MY synthesized work this week against the Linear tickets I'm assigned to, and ACTIVELY update Linear so it reflects the current state of my work — update stale tickets, fix state mismatches, and create missing tickets for work I've actually done that isn't tracked.

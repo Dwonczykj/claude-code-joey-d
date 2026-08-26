@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request with the correct base branch and assignment based on the repository (Fyxer-AI/web-app → staging, Fyxer-AI/eval → main, else → staging). Assigns to Dwonczykj. For web-app, asks about the deploy-qa label. Use when the user asks to create a PR, open a pull request, or push a branch for review.
+description: Create a pull request with the correct base branch and assignment based on the repository (Fyxer-AI/web-app → staging, Fyxer-AI/eval → main, else → staging). Assigns to Dwonczykj. For web-app, asks about the deploy-preview label. Use when the user asks to create a PR, open a pull request, or push a branch for review.
 user_invocable: true
 ---
 
@@ -26,6 +26,16 @@ git log --oneline -10
 | `Fyxer-AI/web-app` | `staging` | `Dwonczykj` |
 | `Fyxer-AI/eval` | `main` | `Dwonczykj` |
 | anything else | `staging` | `Dwonczykj` |
+
+## Phase 2b: deploy-preview label (web-app only)
+
+If the repo is `Fyxer-AI/web-app`, use `AskUserQuestion` to ask:
+
+> "Do you want to add the `deploy-preview` label to this PR? This triggers a QA deploy."
+
+Options: **Yes, add it** / **No, skip it**
+
+Remember the answer for Phase 7.
 
 ## Phase 3: Verify the branch has commits ahead of base
 
@@ -53,29 +63,74 @@ If there are uncommitted changes, warn the user and ask if they want to commit t
 
 5. If **Skip**: continue without a Linear reference.
 
+## Phase 4b: Blast-radius analysis (subagent)
+
+Spawn an `Agent` (subagent_type `general-purpose`, foreground — Phase 5 needs the result) to read the diff explicitly and assess risk, separately from the agent writing the PR:
+
+> Read the complete diff for this PR (`git diff <base-branch>...HEAD`), file by file — not just the stat summary. For each changed file, judge blast radius: what breaks if this change is wrong, which callers/consumers/production paths are affected, whether it touches a shared or high-traffic path (webhook handler, provider call, migration, config read by other services), and whether it's easily reversible. Ignore style and correctness — only blast radius.
+>
+> Specifically answer:
+> - Will any user visibly see a change in production because of this PR — even a subtle one (copy, timing, an email/draft going out differently)?
+> - Who is affected: all users, only internal/staff users, or only users behind a specific PostHog or GrowthBook flag? Name the flag if there is one, and say what happens to users NOT in the flag.
+> - If new code in this PR throws, times out, or short-circuits, does that failure silently change existing production behaviour for any user (e.g. a guard that now no-ops, a fallback that now takes a different path, a feature that now silently disables)? Trace it, don't assume the existing error handling catches it.
+>
+> Return: an overall risk level (low/medium/high), the specific files/paths carrying the risk, and one sentence per risky file naming the concrete failure scenario — folding the three answers above into that.
+
+Use this verdict, not a guess, to write the **Risks** section in Phase 5. "None" is still valid if the subagent finds nothing risky.
+
 ## Phase 5: Draft the PR title and body
 
 Read the commits and diff to write:
 
 - **Title**: conventional-commit style matching the project convention (`feat:`, `fix:`, `chore:`, `experiment:`). Under 70 chars. No apostrophes.
-- **Body**: use this template (include the Linear line only if a Linear issue was resolved in Phase 4):
+- **Body**: web-app requires each of `Problem`, `Changes`, `Testing`, `Risks` as its own markdown heading (`.github/PULL_REQUEST_TEMPLATE.md`) — the CI check "Description follows template" (`.github/workflows/pr-description.yml`) fails the PR otherwise. The check matches `^[ ]{0,3}#{1,6}[ \t]*<Heading>\b` case-insensitively after stripping HTML comments and fenced code blocks, so keep each heading on its own line and outside any ``` fence. Editing the PR description re-runs the check with no new commit. The `skip-template` label exempts a PR (last-resort escape hatch). Non-web-app repos have no such check (e.g. `eval` has no `.github/` at all) and use the shorter Summary/Test plan form below. Include the Linear line only if a Linear issue was resolved in Phase 4.
 
-```
-## Summary
-- <bullet 1>
-- <bullet 2>
-- <bullet 3 if needed>
+  For `Fyxer-AI/web-app`:
 
-## Test plan
-- [ ] <test step 1>
-- [ ] <test step 2>
+  ```
+  ## Problem
 
-Linear: <PRE-123 url>   ← omit this line if no Linear issue
+  <what is wrong or missing today, and why it matters — link the issue/ticket/incident>
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-```
+  ## Changes
 
-Keep the summary to 1–3 bullets covering what changed and why. Keep the test plan to concrete, checkable steps.
+  <what this PR does. Call out explicitly: any behavioural change to an external provider
+  call (Graph, Gmail, Stripe, ...); any removal of existing behaviour (guard, filter,
+  condition, retry), with the reasoning and evidence>
+
+  ## Testing
+
+  <commands run and what they actually exercised. Say what was not tested. One line is fine
+  for a small change; write "None" if there was nothing to run>
+
+  ## Risks
+
+  <from the Phase 4b subagent verdict: blast radius, rollback plan, latent paths (e.g.
+  cache-miss fallbacks that only run in production). Write "None" if genuinely none>
+
+  Linear: <PRE-123 url>   ← omit this line if no Linear issue
+
+  🤖 Generated with [Claude Code](https://claude.com/claude-code)
+  ```
+
+  For other repos:
+
+  ```
+  ## Summary
+  - <bullet 1>
+  - <bullet 2>
+  - <bullet 3 if needed>
+
+  ## Test plan
+  - [ ] <test step 1>
+  - [ ] <test step 2>
+
+  Linear: <PRE-123 url>   ← omit this line if no Linear issue
+
+  🤖 Generated with [Claude Code](https://claude.com/claude-code)
+  ```
+
+Keep each section factual and specific — "None" is a real, valid answer for Testing/Risks on a trivial change, not something to pad out.
 
 ## Phase 6: Push and create the PR
 
@@ -98,17 +153,11 @@ EOF
 )"
 ```
 
-## Phase 7: deploy-qa label (web-app only)
+## Phase 7: deploy-preview label (web-app only)
 
-If the repo is `Fyxer-AI/web-app`, use `AskUserQuestion` to ask:
-
-> "Do you want to add the `deploy-qa` label to this PR? This triggers a QA deploy."
-
-Options: **Yes, add it** / **No, skip it**
-
-If yes:
+If the repo is `Fyxer-AI/web-app` and the user said yes in Phase 2b:
 ```bash
-gh pr edit --add-label "deploy-qa"
+gh pr edit --add-label "deploy-preview"
 ```
 
 ## Phase 8: Report back

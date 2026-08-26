@@ -18,6 +18,17 @@ skills/**
 !skills/*/
 !skills/*/SKILL.md
 
+!local-plugins/
+!local-plugins/**
+
+!plugins/
+plugins/**
+!plugins/blocklist.json
+!plugins/known_marketplaces.json
+!plugins/installed_plugins.json
+!plugins/code-review/
+!plugins/marketplaces/
+
 !commands/
 !commands/**
 

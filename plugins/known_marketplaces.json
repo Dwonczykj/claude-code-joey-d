@@ -1,0 +1,34 @@
+{
+  "claude-plugins-official": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    },
+    "installLocation": "/Users/joey/.claude/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-08-26T03:27:20.665Z"
+  },
+  "ponytail": {
+    "source": {
+      "source": "github",
+      "repo": "DietrichGebert/ponytail"
+    },
+    "installLocation": "/Users/joey/.claude/plugins/marketplaces/ponytail",
+    "lastUpdated": "2026-06-29T07:14:21.071Z"
+  },
+  "antigravity": {
+    "source": {
+      "source": "directory",
+      "path": "/private/tmp/antigravity-plugin"
+    },
+    "installLocation": "/private/tmp/antigravity-plugin",
+    "lastUpdated": "2026-08-18T09:05:35.170Z"
+  },
+  "sf": {
+    "source": {
+      "source": "directory",
+      "path": "/Users/joey/.claude/local-plugins/sf"
+    },
+    "installLocation": "/Users/joey/.claude/local-plugins/sf",
+    "lastUpdated": "2026-08-26T00:00:00.000Z"
+  }
+}

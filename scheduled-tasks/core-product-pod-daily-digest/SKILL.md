@@ -1,6 +1,8 @@
 ---
 name: core-product-pod-daily-digest
 description: Daily Slack digest of customer evidence and Core Product pod updates (Inbox Intelligence, Inbox Overwhelm, Intelligence, Drafts), sent as a DM to self
+model: sonnet
+effort: medium
 ---
 
 You are running a daily Slack digest routine for Joey Dwonczyk (joey.dwonczyk@fyxer.com) at Fyxer AI.

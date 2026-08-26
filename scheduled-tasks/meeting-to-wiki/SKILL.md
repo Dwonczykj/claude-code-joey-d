@@ -1,9 +1,12 @@
 ---
 name: meeting-to-wiki
-description: Fetch recent meeting summaries via the Fyxer MCP connector and save them as notes in the Obsidian wiki
+description: Fetch recent meeting notes via the Granola connector and save them as notes in the Obsidian wiki
+model: sonnet
 ---
 
-You are an agent that fetches Joey's recent meeting summaries and saves each one as a wiki note AND as an episode for downstream synthesis.
+You are an agent that fetches Joey's recent Granola meeting notes and saves each one as a wiki note AND as an episode for downstream synthesis.
+
+Granola is the ONLY meeting source for this routine. Do not call the Fyxer recordings MCP or any other meeting source.
 
 EPISODES_DIR: /Users/joey/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/_episodes
 WIKI_DIR: /Users/joey/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes
@@ -20,31 +23,29 @@ Compute:
 - `WINDOW_START` = ISO 8601 timestamp for now − WINDOW_HOURS
 - `WINDOW_END` = ISO 8601 timestamp for now
 
-### 2. Fetch recent meetings via Fyxer MCP connector
+### 2. Fetch recent meetings via the Granola connector
 
-Use the Fyxer MCP recordings tools (load schemas via ToolSearch first if not loaded):
+Use the Granola MCP tools (load schemas via ToolSearch first if not loaded):
 
-- `mcp__dcf1f14f-9159-4112-9ec2-385a5bb1797f__find_recordings`
-- `mcp__dcf1f14f-9159-4112-9ec2-385a5bb1797f__get_recording`
-- `mcp__dcf1f14f-9159-4112-9ec2-385a5bb1797f__get_transcript`
+- `mcp__c8bbb97e-3ea6-48db-b893-f52d8904fa17__list_meetings`
+- `mcp__c8bbb97e-3ea6-48db-b893-f52d8904fa17__get_meetings`
+- `mcp__c8bbb97e-3ea6-48db-b893-f52d8904fa17__get_meeting_transcript`
 
 Procedure:
-1. Call `find_recordings` with `query: ""`, `from: WINDOW_START`, `to: WINDOW_END`, `maxResults: 50` to list every recording in the lookback window. Use participants/attendee filters only if find_recordings refuses an empty query — in that case retry with `participants: ["joey.dwonczyk@fyxer.com"]`.
-2. For each returned recording, call `get_recording` with the meeting id to retrieve metadata + summary + parsed sections + action items. The `summary` field is what the wiki note should use.
-3. **Truncation handling.** The `get_recording` response includes only a transcript *preview* and may also truncate very long summary text. Treat the summary returned by `get_recording` as the canonical body for the note, but if it ends mid-sentence or the response signals truncation, supplement it as follows:
-   - Call `get_transcript` paginated (start `offset: 0`, then call again with `offset = pagination.offset + pagination.returnedSegments` while `pagination.hasMore` is true) and append a `## Transcript (raw, paginated)` section beneath the summary with the concatenated segments.
-   - In the wiki note frontmatter set `summary_truncated: true` and `transcript_appended: true` so the truncation provenance is visible.
-   - If `get_transcript` returns `totalSegments: 0` the meeting was not recorded — keep whatever summary text you have and add a frontmatter field `transcript_unavailable: true` rather than retrying.
-4. Map the MCP response to a uniform shape for the steps below:
-   - `call_summary_id` ← the recording id (prefix with `mcp:`, e.g. `mcp:<meetingId>`)
-   - `calendar_event_id` ← whatever the recording metadata exposes (often `calendarEventId`); null if absent
-   - `call_recording_id` ← the recording id
-   - `created_at` ← the recording's start timestamp
-   - `content` ← the summary text (plus appended transcript when supplemented)
-   - `attendees` ← list of attendee emails from the metadata when present
-   - `title_hint` ← the recording title from metadata when present (use it for the wiki note title if it is meaningful)
+1. Call `list_meetings` with `time_range: "custom"`, `custom_start: WINDOW_START`, `custom_end: WINDOW_END`, and `involvement: {captured_by_me: true, listed_as_participant: true}` to list every meeting Joey was involved in during the lookback window.
+2. Call `get_meetings` with the returned ids, batched in groups of 10 (the tool caps at 10 ids per call), to retrieve the AI summary, private notes, attendees, and metadata. The summary is what the wiki note should use; append Joey's private notes beneath it under `## My notes` when present.
+3. **Truncation handling.** If a summary ends mid-sentence or the response signals truncation, call `get_meeting_transcript` for that meeting id and append a `## Transcript (raw)` section beneath the summary. Set `summary_truncated: true` and `transcript_appended: true` in the wiki note frontmatter so the provenance is visible.
+   - If the transcript comes back empty, the meeting was not recorded — keep whatever summary text you have and set `transcript_unavailable: true` rather than retrying.
+4. Map the Granola response to a uniform shape for the steps below:
+   - `call_summary_id` ← the Granola meeting id, prefixed: `granola:<meetingId>`
+   - `calendar_event_id` ← the calendar event id from metadata when Granola exposes one; null if absent
+   - `call_recording_id` ← the Granola meeting id (unprefixed)
+   - `created_at` ← the meeting's start timestamp
+   - `content` ← the summary text (plus private notes and appended transcript when present)
+   - `attendees` ← attendee emails from the metadata when present
+   - `title_hint` ← the Granola meeting title (use it for the wiki note title if it is meaningful)
 
-If the MCP connector returns nothing, report that and stop.
+If Granola returns no meetings in the window, report that and stop.
 
 ### 3. Deduplicate against existing vault notes
 
@@ -53,6 +54,8 @@ For each candidate meeting, grep the vault for the `call_summary_id` in frontmat
 ```bash
 grep -rl "call_summary_id:" "/Users/joey/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes" 2>/dev/null | xargs grep -l "{call_summary_id}" 2>/dev/null
 ```
+
+Granola ids differ from the ids used by the previous Fyxer-MCP version of this routine, so an id miss does not prove the meeting is new. Before writing, also check for an existing note covering the same meeting by `calendar_event_id` (when present) and, failing that, by same date + near-identical title. Skip those too.
 
 ### 5. For each new meeting, create an Obsidian wiki note
 
@@ -70,24 +73,24 @@ tags: [meeting, fyxer-ai]
 date: YYYY-MM-DD
 type: meeting
 source: call-summary
-source_system: fyxer-mcp
+source_system: granola
 call_summary_id: "{call_summary_id}"
 calendar_event_id: "{calendar_event_id or null}"
 call_recording_id: "{call_recording_id or null}"
 summary_truncated: {true|false}     # omit if false
 transcript_appended: {true|false}   # omit if false
-transcript_unavailable: {true|false} # omit if false; set when totalSegments == 0
+transcript_unavailable: {true|false} # omit if false; set when the transcript comes back empty
 related: ["[[relevant existing notes]]"]
 ---
 
 # {Title}
 
-> Meeting summary from {YYYY-MM-DD HH:MM} UTC | ID: `{call_summary_id}` | source: fyxer-mcp
+> Meeting summary from {YYYY-MM-DD HH:MM} UTC | ID: `{call_summary_id}` | source: granola
 
 {content from the call summary, preserved as-is}
 
-## Transcript (raw, paginated)   <!-- only if transcript was appended due to truncation -->
-{concatenated transcript segments}
+## Transcript (raw)   <!-- only if transcript was appended due to truncation -->
+{transcript text}
 ```
 
 Add `[[wikilinks]]` to any people, projects, or concepts mentioned that match existing vault notes. Add relevant tags beyond `meeting` and `fyxer-ai` based on content (e.g. `firestore`, `evaluation`, `growthbook`).
@@ -98,14 +101,14 @@ The downstream synthesizers (`synthesize-work-done`, `synthesize-pod-work`) cons
 
 File path: `{EPISODES_DIR}/{ISO_TS}-meeting-{call_summary_id_short}.md`
 - `ISO_TS` = meeting `created_at` in `YYYY-MM-DDTHH-MM` local time
-- `call_summary_id_short` = first 12 chars of `call_summary_id` (after stripping any `mcp:` prefix), kebab-safe
+- `call_summary_id_short` = first 12 chars of `call_summary_id` (after stripping the `granola:` prefix), kebab-safe
 
 Frontmatter (YAML):
 ```yaml
 ---
 type: episode
 source: meeting
-source_system: fyxer-mcp
+source_system: granola
 source_id: <call_summary_id>
 source_path: <absolute path to the wiki note created in step 5>
 ts: <ISO 8601 with offset — meeting created_at>
@@ -159,7 +162,7 @@ Append each new meeting to `{WIKI_INDEX_DIR}/index.md` under a **Meetings** cate
 Append to `{WIKI_INDEX_DIR}/log.md`:
 ```
 ## [YYYY-MM-DD] ingest | Meeting: {Title}
-- Created meeting note from call summary (source: fyxer-mcp)
+- Created meeting note from call summary (source: granola)
 - Created episode: {episode filename}
 - call_summary_id: {id}
 ```

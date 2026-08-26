@@ -1,6 +1,8 @@
 ---
 name: weekly-product-changes-html
 description: Generate a weekly interactive HTML report of product changes (last 4 weeks) with Engineering / GTM / Leadership tabs
+model: sonnet
+effort: medium
 ---
 
 Generate a self-contained interactive HTML report summarizing the last 4 weeks of MY Fyxer product changes, with Engineering / GTM / Leadership tabs. Read primarily from synthesized OBSERVATIONS — fall back to raw git/gh only for changes not yet reflected in observations (e.g. same-day work).

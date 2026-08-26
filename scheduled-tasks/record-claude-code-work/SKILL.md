@@ -1,6 +1,8 @@
 ---
 name: record-claude-code-work
 description: Organise history of claude code sessions
+model: sonnet
+effort: medium
 ---
 
 Goal: append a dated entry to my work log capturing what I did in the
@@ -8,39 +10,42 @@ last 24 hours, organised by topic. Runs every weekday.
 
 Inputs (gather all three):
 
-1. Git commits from the last 24h, local AND remote (cloud agents push
-   directly to remote branches I haven't pulled).
+EPISODES_DIR: /Users/joey/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/_episodes
 
-   Repos to scan:
-   - /Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app (main)
-   - All worktrees under /Users/joey/FyxerGh/fyxer-web-app-trees/
-     (iterate every subdirectory that is a git worktree; skip the
-     main one above to avoid double-counting)
-   - /Users/joey/FyxerGh/fyxer-chrome-extension
-   - /Users/joey/FyxerGh/fyxer-e2b
-   - /Users/joey/FyxerGh/fyxer-human-data-platform
-   - /Users/joey/FyxerGh/data-platform
-
-   For each repo:
-     a. `git fetch --all --quiet`
-     b. `git log --all --since="24 hours ago"
-        --author="joey.dwonczyk@fyxer.com"
-        --pretty=format:"%h %aI %s %d"`
-        (%d includes ref names so you can see which branch each
-        commit is on)
+1. Git commits from the last 24h: read episode files in EPISODES_DIR
+   with frontmatter `source: git` or `source: github-pr` whose `ts`
+   falls in the last 24h. These are written earlier each day by the
+   `collect-git-episodes` scheduled task (covers all repos under
+   /Users/joey/FyxerGh, local and remote). Use each file's `repo`,
+   `branch`, `subject`/`pr_title`, and `ts` fields directly.
 
    Cloud agent commits are authored as me but pushed to branches
-   containing "claude" in the name (e.g. claude/*, claude-code/*).
-   Tag these as agent-driven in the output.
+   containing "claude" in the name (e.g. claude/*, claude-code/*) —
+   check the episode's `branch` field. Tag these as agent-driven in
+   the output.
+
+   Fallback: if EPISODES_DIR has no matching git episodes for the
+   window (collector didn't run or is stale), fall back to scanning
+   directly: for each repo listed in `collect-git-episodes`'s
+   SKILL.md, `git fetch --all --quiet` then
+   `git log --all --since="24 hours ago" --author="joey.dwonczyk@fyxer.com" --pretty=format:"%h %aI %s %d"`.
 
    Deduplicate by commit SHA.
 
-2. Claude Code sessions from the last 24h at
-   ~/.claude/projects/**/*.jsonl. Capture session start/end
-   timestamps from file mtimes and message timestamps inside.
+2. Claude Code sessions from the last 24h: read episode files in
+   EPISODES_DIR with frontmatter `source: claude-code` whose
+   `ts_start` falls in the last 24h. These are written earlier each
+   day by the `collect-claude-episodes` scheduled task. Use each
+   file's `ts_start`, `ts_end`, `project`, and summary body directly.
+
+   Fallback: if EPISODES_DIR has no matching claude-code episodes for
+   the window, fall back to scanning ~/.claude/projects/**/*.jsonl
+   directly for the last 24h (session start/end from file mtimes and
+   message timestamps inside).
 
 3. Claude.ai chats from the last 24h via conversation_search /
-   recent_chats. Capture chat timestamps.
+   recent_chats. Capture chat timestamps. (Nothing else collects
+   this, so always gather it fresh.)
 
 Context:
 - Wiki location:

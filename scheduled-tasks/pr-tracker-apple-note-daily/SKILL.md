@@ -1,6 +1,8 @@
 ---
 name: pr-tracker-apple-note-daily
 description: Refresh "Open PR Tracker — Joey" Apple Note daily at 8:50am
+model: sonnet
+effort: medium
 ---
 
 Invoke the `pr-tracker-apple-note` skill (at ~/.claude/skills/pr-tracker-apple-note/SKILL.md) to refresh the Apple Note titled "Open PR Tracker — Joey" with the current state of my open GitHub PRs on Fyxer-AI/web-app and their linked Linear PRE issues.

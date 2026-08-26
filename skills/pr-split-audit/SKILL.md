@@ -104,6 +104,8 @@ gh pr create --repo <owner>/<repo> --base <base-branch> --head <branch> \
   --title "<conventional title>" --body "<body>"
 ```
 
+For `Fyxer-AI/web-app`, `<body>` must carry each of `Problem`, `Changes`, `Testing`, `Risks` as its own markdown heading (see `create-pr`) or CI's "Description follows template" check fails the sub-PR; the `skip-template` label bypasses it.
+
 Linear sub-issue under the parent PRD via the `notion-/linear-create-context-pod-issue` style skill or the Linear MCP `save_issue` tool with `parentId: <parent-issue>`.
 
 Backfill the Linear URL into the PR body with `gh pr edit <num> --body ...` once the issue ID is known.

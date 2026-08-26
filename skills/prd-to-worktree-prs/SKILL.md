@@ -59,6 +59,13 @@ worktrees) to implement them in the right order.
    - Staged: foundation PR first; once its branch exists, fan out the dependents.
    - Give each agent the full approved spec, its branch base, and the acceptance criteria.
 
+10. **Gate before opening, don't open straight from step 9.** A build agent finishing
+    does not mean the diff is ready — run `pre-pr-gate`'s three Codex passes (contract vs
+    spec, code-quality/DRY/concurrency, test-mock scrutiny) or the equivalent loop in
+    `solve-in-worktrees` Phase 4-5 against each worktree before pushing and opening the
+    PR. Skipping this step is how a build agent's own mocked tests hide a real bug all
+    the way to the PR.
+
 ## Conventions (Fyxer)
 
 - Base branch is `staging`; PR titles `feat:` / `fix:` / `chore:` / `experiment:`.

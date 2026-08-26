@@ -1,6 +1,8 @@
 ---
 name: create-recognition-of-work-doc
 description: Generate a weekly branded HTML recognition document showcasing my contributions, ICP value, and business impact for senior leadership
+model: sonnet
+effort: medium
 ---
 
 Generate a self-contained, interactive, Fyxer-branded HTML document that presents the value contributed to the Fyxer product this week. Naturally compelling to senior leadership without ever stating or implying a desire for promotion — the contribution narrative speaks for itself. Read primarily from synthesized OBSERVATIONS; only supplement from raw episodes/PRs when an observation gap exists.

@@ -1,6 +1,8 @@
 ---
 name: drafts-experiment-wulfie-54mini
 description: Run drafts experiment results query for draft-wulfie-5.4mini-rhigh-vlow
+model: sonnet
+effort: medium
 ---
 
 Run the drafts experiment BigQuery analysis for the experiment flag "draft-wulfie-5.4mini-rhigh-vlow".
