@@ -65,7 +65,6 @@
   "enabledPlugins": {
     "telegram@claude-plugins-official": false,
     "ponytail@ponytail": true,
-    "antigravity@antigravity": true,
     "sf@sf": true
   },
   "extraKnownMarketplaces": {

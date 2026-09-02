@@ -60,8 +60,8 @@ ux-microchange  (independent)
 Pick a merge order that:
 
 - Ships independent leaves first (parallel) — they queue with no blockers.
-- Stacks dependents against their parent's branch (not `staging`) using `gh pr create --base <parent-branch>`. The PR diff stays small because GitHub diffs against the base.
-- Re-targets each child PR up to `staging` once its parent merges (GitHub auto-retargets when a parent merges via the PR UI; verify after each merge).
+- Stacks dependents so each child's base is its parent's branch (not `staging`) — the diff stays small because GitHub diffs against the base. Register this as a **native `gh stack`** (see below), don't hand-chain `--base` per PR.
+- A native stack auto-retargets each child down as its parent merges — no manual re-basing or per-merge re-targeting.
 
 ## Phase 4: Write the plan
 
@@ -106,6 +106,14 @@ gh pr create --repo <owner>/<repo> --base <base-branch> --head <branch> \
 
 For `Fyxer-AI/web-app`, `<body>` must carry each of `Problem`, `Changes`, `Testing`, `Risks` as its own markdown heading (see `create-pr`) or CI's "Description follows template" check fails the sub-PR; the `skip-template` label bypasses it.
 
+**Register the stack once the dependent sub-PRs exist.** Create each with `--base` = the trunk it will finally land on (usually `staging`), then chain them with the native `gh stack` (gh ≥ 2.97; the old Rust `github/gh-stack` is deprecated), bottom to top — see `create-pr` Phase 6b:
+
+```bash
+gh stack link --base staging <bottom-pr> <middle-pr> <top-pr>   # PR numbers, bottom→top
+```
+
+This sets each child's base to its parent's branch and auto-retargets on merge, so you never hand-maintain `--base` re-targets. Independent leaves that sit directly on `staging` don't need linking.
+
 Linear sub-issue under the parent PRD via the `notion-/linear-create-context-pod-issue` style skill or the Linear MCP `save_issue` tool with `parentId: <parent-issue>`.
 
 Backfill the Linear URL into the PR body with `gh pr edit <num> --body ...` once the issue ID is known.
@@ -122,7 +130,7 @@ Add a comment on the original PR linking all sub-PRs in a table, so reviewers ca
   - If either grep hits, either bundle the consumer update into the types PR (broadens it but keeps each PR green) or land a tiny prep PR that relaxes the exhaustiveness (e.g. `Record` → `Partial<Record>`, registry-lock → derived from `Object.values(Enum)`) before the enum addition. Don't ship the enum addition alone and trust the title — CI will catch it but you'll have wasted a review cycle.
 - **Firestore composite indexes**: queries that are all `==` filters with no `orderBy` / range filter don't need a composite index (Firestore zigzag-merges single-field indexes per project CLAUDE.md). Only add a composite if there's a range filter, an `orderBy` on a different field, or you've benchmarked contention.
 - **Push restrictions in worktree-isolated agents**: agents can commit but not push. Always have the agent stop after `git commit` and report the branch + SHA; push from the main worktree.
-- **Branch deletion on merge**: if the upstream uses "Delete branch on merge", a parent slice's branch disappears when it merges and any child PR stacked on it errors with `Head sha can't be blank`. Re-base / re-target the child to a still-living branch (usually one level up the stack or `staging`).
+- **Branch deletion on merge**: a native `gh stack` auto-retargets each child before its parent's branch is deleted, so this is mostly handled. If a child is *not* in the stack and its parent used "Delete branch on merge", the branch disappears on merge and the child errors with `Head sha can't be blank` — re-target it to a still-living branch (one level up the stack or `staging`) with `gh pr edit <child> --base <branch>`.
 - **Lint in gitignored worktree**: if the worktree path contains a gitignored segment (e.g. `.claude/`), Prettier and oxlint silently skip files — see the `lint-in-ignored-worktree` skill. Run lint from a non-gitignored location, or trust pre-commit hooks.
 - **Pre-commit typecheck failures in fresh worktree**: husky may run `tsc --noEmit` which the project's parent CLAUDE.md says to avoid. If it fails with `Cannot find module '@fyxer-ai/...'`, run `pnpm i` in the worktree first — the workspace links are missing, not the types broken.
 - **CI cascade**: when one workflow (Build/Typecheck) fails, downstream jobs (Lint, Stripe-guard, Test) often `##[error]The operation was canceled` — those aren't independent failures, fix the upstream one first.

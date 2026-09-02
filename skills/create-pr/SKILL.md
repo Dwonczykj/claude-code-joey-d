@@ -83,6 +83,7 @@ Use this verdict, not a guess, to write the **Risks** section in Phase 5. "None"
 Read the commits and diff to write:
 
 - **Title**: conventional-commit style matching the project convention (`feat:`, `fix:`, `chore:`, `experiment:`). Under 70 chars. No apostrophes.
+- **Sentence length**: every sentence in the body, in any section, targets about 12 words and never exceeds 18. Split anything longer into two sentences.
 - **Body**: web-app requires each of `Problem`, `Changes`, `Testing`, `Risks` as its own markdown heading (`.github/PULL_REQUEST_TEMPLATE.md`) — the CI check "Description follows template" (`.github/workflows/pr-description.yml`) fails the PR otherwise. The check matches `^[ ]{0,3}#{1,6}[ \t]*<Heading>\b` case-insensitively after stripping HTML comments and fenced code blocks, so keep each heading on its own line and outside any ``` fence. Editing the PR description re-runs the check with no new commit. The `skip-template` label exempts a PR (last-resort escape hatch). Non-web-app repos have no such check (e.g. `eval` has no `.github/` at all) and use the shorter Summary/Test plan form below. Include the Linear line only if a Linear issue was resolved in Phase 4.
 
   For `Fyxer-AI/web-app`:
@@ -90,23 +91,31 @@ Read the commits and diff to write:
   ```
   ## Problem
 
-  <what is wrong or missing today, and why it matters — link the issue/ticket/incident>
+  <at most 2 sentences: what is wrong or missing today, and why it matters — link the
+  issue/ticket/incident>
 
   ## Changes
 
-  <what this PR does. Call out explicitly: any behavioural change to an external provider
-  call (Graph, Gmail, Stripe, ...); any removal of existing behaviour (guard, filter,
-  condition, retry), with the reasoning and evidence>
+  <one bullet per change, each bullet a single sentence. Call out explicitly: any
+  behavioural change to an external provider call (Graph, Gmail, Stripe, ...); any removal
+  of existing behaviour (guard, filter, condition, retry), with the reasoning and evidence>
+  - <change 1, one sentence>
+  - <change 2, one sentence>
 
   ## Testing
 
-  <commands run and what they actually exercised. Say what was not tested. One line is fine
-  for a small change; write "None" if there was nothing to run>
+  <an ordered list of single-sentence tasks for the human reviewer to run manually — not
+  commands you already ran. Say what was not tested. Write "None" if there is nothing for
+  the human to check>
+  1. <task 1, one sentence>
+  2. <task 2, one sentence>
 
   ## Risks
 
   <from the Phase 4b subagent verdict: blast radius, rollback plan, latent paths (e.g.
-  cache-miss fallbacks that only run in production). Write "None" if genuinely none>
+  cache-miss fallbacks that only run in production). Lead each risk with a bold flag
+  matching its severity — **High risk:**, **Medium risk:**, **Low risk:** — one sentence
+  each. Write "None" if genuinely none>
 
   Linear: <PRE-123 url>   ← omit this line if no Linear issue
 
@@ -152,6 +161,24 @@ gh pr create \
 EOF
 )"
 ```
+
+## Phase 6b: Stacking on another PR (dependent PRs only)
+
+Skip this unless the PR builds on **another open PR's branch** rather than on the trunk.
+
+Stacking is native to `gh` now — the built-in `gh stack` (gh ≥ 2.97). The old Rust `github/gh-stack` extension is **deprecated; do not use it**. Do **not** hand-chain bases with `gh pr create --base <parent-branch>` and then manually re-target each child on merge — that is the error-prone approach that predates `gh stack`. Register a native stack instead: GitHub then sets every base, shows the stack in its UI, and auto-retargets each child down as its parent merges.
+
+Create each PR the normal way (Phase 6, `--base` = the trunk each will finally land on, usually `staging`), then register the stack **bottom to top**:
+
+```bash
+gh stack link --base <trunk> <bottom-pr> <middle-pr> <top-pr>   # PR numbers or URLs, bottom→top
+```
+
+- `--base` is the trunk beneath the **bottom** PR (`staging` for web-app), not a parent branch. Passing a PR its current base is a safe no-op, so include the whole feature chain to register it as one stack.
+- Pass PR **numbers** for already-open PRs: `gh stack link` then only moves base pointers on GitHub — it pushes/rebases nothing, so a member branch checked out in another worktree is fine.
+- It sets each PR's base to the branch below it and prints a stack number. A member's diff stays scoped because GitHub diffs against the immediate base (siblings off a shared ancestor keep that ancestor as their merge base).
+- Grow an existing stack by passing its stack number first: `gh stack link <stack-number> <new-top-pr>`.
+- To detach (let the bottom PR merge onto the trunk alone): `gh stack unstack <stack-number>` — always **by number**, never bare inside a worktree. See the `reference_gh_native_stack_unstack` memory for the unstack gotchas.
 
 ## Phase 7: deploy-preview label (web-app only)
 

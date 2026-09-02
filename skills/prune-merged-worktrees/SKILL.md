@@ -35,6 +35,7 @@ Note: ancestor check does NOT detect squash-merges. A squash-merged branch shows
 Enumerate from `git worktree list` — it is the ONLY complete source. A directory glob like `~/FyxerGh/fyxer-web-app-trees/*` misses worktrees nested elsewhere (e.g. agent worktrees under `<repo>/.claude/worktrees/agent-*`), so size the paths git reports instead of globbing a directory. This one script builds the whole table:
 
 ```bash
+df -h / | tail -1   # record free space now, to diff against the final step
 git fetch origin <base>
 main=$(git rev-parse --show-toplevel); now=$(date +%s)
 git -C "$main" worktree list --porcelain | awk '/^worktree /{print $2}' | while read wt; do
@@ -106,6 +107,10 @@ Filter out noise (e.g. `.claude/settings.json`, build artifacts) when describing
 git worktree remove --force "<wt>"
 ```
 
+### Final step — disk usage
+
+After all tiers are settled (auto-removed, user-approved deletes done, kept ones left alone), run `df -h /` again and diff it against the Step 0 reading to report actual free-space reclaimed — don't estimate from worktree sizes, the real before/after numbers are already in hand.
+
 ## Rules
 
 - Always use `git worktree remove` (not `rm -rf`). Deleting the folder by hand leaves dangling metadata in `.git/worktrees/`; git's own command cleans it up properly.
@@ -115,7 +120,7 @@ git worktree remove --force "<wt>"
 - Tier 1 is the only auto-action; Tiers 2 and 3 always ask. Under `--require-pushed`, Tier 1 additionally requires `pushed=YES`.
 - Prefer one `AskUserQuestion` per tier with multiSelect over many small prompts. `AskUserQuestion` allows at most 4 options per question — when a tier has more than 4 worktrees, chunk them across multiple questions (each still multiSelect).
 - Remove one worktree at a time with a generous timeout (node_modules deletion is slow); an interrupted remove leaves an all-`D` dirty tree that needs `--force` to finish (see Tier 1).
-- After all tiers, print a final summary: removed (with approx disk reclaimed), kept, and why.
+- After all tiers, print a final summary: removed (with disk reclaimed, from the before/after `df -h` diff), kept, and why.
 - Use `git -C <path>` rather than `cd` to avoid permission prompts.
 
 ## Fast path one-liner

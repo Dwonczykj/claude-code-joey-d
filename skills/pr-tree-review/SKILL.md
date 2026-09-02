@@ -8,7 +8,7 @@ description: Build a pre-review dashboard of recent PRs — a markdown table sor
 Produce two artefacts for a review-readiness sweep of recent PRs:
 
 1. A **markdown table**, rows sorted/grouped **spec → parent feature (if present) → feature → stacked-PR chain**.
-2. An **Excalidraw tree** with the same hierarchy, written to `<repo>/webapp-3day-tree.excalidraw` (or a name the user gives) and copied to the clipboard as `excalidraw/clipboard` JSON.
+2. An **Excalidraw tree** with the same hierarchy, written to `/tmp/webapp-3day-tree.excalidraw` (or a name the user gives) and copied to the clipboard as `excalidraw/clipboard` JSON. Never write this into the repo working tree — it's a throwaway visualisation, not a repo artefact.
 
 Default repo: `Fyxer-AI/web-app`. Default author: the current user (`@me`). Default window: last 3 days — ask if the user implies a different range.
 
@@ -119,8 +119,8 @@ PR fields: `number`, `title`, `status` (line-2 text), `bots` (int), flags `merge
 Run it, then copy the clipboard flavour and send the file:
 
 ```bash
-python3 ~/.claude/skills/pr-tree-review/generate_excalidraw.py /tmp/spec.json <repo>/webapp-3day-tree.excalidraw
-python3 -c "import json;d=json.load(open('<repo>/webapp-3day-tree.excalidraw'));print(json.dumps({'type':'excalidraw/clipboard','elements':d['elements'],'files':{}}))" | pbcopy
+python3 ~/.claude/skills/pr-tree-review/generate_excalidraw.py /tmp/spec.json /tmp/webapp-3day-tree.excalidraw
+python3 -c "import json;d=json.load(open('/tmp/webapp-3day-tree.excalidraw'));print(json.dumps({'type':'excalidraw/clipboard','elements':d['elements'],'files':{}}))" | pbcopy
 ```
 
 Then `SendUserFile` the `.excalidraw` and tell the user it is also on the clipboard (⌘V into any Excalidraw canvas).

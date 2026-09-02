@@ -9,27 +9,28 @@ Vision LLM APIs (Claude, GPT-4o) ingest **still images**, not animated GIFs. A G
 
 Requires `ffmpeg` (`brew install ffmpeg`). PDF mode also needs `img2pdf` (`pip install img2pdf`).
 
+No bundled scripts — run the ffmpeg commands below directly. They're one-liners; substitute the input path, fps, and tile grid.
+
+Frames are chronological, so you don't need timestamps stamped on: sampled frame `N` (0-indexed) is at `N / fps` seconds. Stamping the time visually needs an ffmpeg built with libfreetype (`drawtext`), which many Homebrew builds lack — check with `ffmpeg -filters | grep drawtext`. If you have it, insert `drawtext=text='%{pts\:hms}':x=5:y=5:fontcolor=yellow:box=1:boxcolor=black@0.5` into the filter chain (before `tile` for the contact sheet). The defaults below skip it so they run everywhere.
+
 ## Three strategies
 
-**Contact sheet (default)** — one image tiling N frames, each stamped with its timestamp. Best when you want the model to reason over the whole clip in a single request and minimise tokens/cost.
+**Contact sheet (default)** — one image tiling N frames chronologically (left-to-right, top-to-bottom). Best when you want the model to reason over the whole clip in a single request and minimise tokens/cost. Set the `tile=COLSxROWS` grid so `COLS*ROWS` >= the number of sampled frames (`fps * clip_seconds`).
 
 ```bash
-scripts/contact_sheet.sh INPUT.mp4 [FPS] [COLS] [OUTFILE]
-# e.g. scripts/contact_sheet.sh demo.mp4 1 4 sheet.jpg
+ffmpeg -i INPUT.mp4 -vf "fps=1,scale=320:-1,tile=5x5" -frames:v 1 sheet.jpg
 ```
 
 **Separate frames** — one JPEG per sampled frame. Use when the clip is long, temporal detail matters, or the model must inspect frames individually.
 
 ```bash
-scripts/extract_frames.sh INPUT.mp4 [FPS] [WIDTH] [OUTDIR]
-# e.g. scripts/extract_frames.sh demo.mp4 2 768 frames/
+mkdir -p frames && ffmpeg -i INPUT.mp4 -vf "fps=2,scale=768:-1" frames/frame_%04d.jpg
 ```
 
-**PDF** — one multi-page PDF, one timestamped frame per page. Use when the target tool ingests PDFs more cleanly than multiple image uploads (some do), or to keep a whole clip in one attachment.
+**PDF** — one multi-page PDF, one frame per page. Use when the target tool ingests PDFs more cleanly than multiple image uploads (some do), or to keep a whole clip in one attachment.
 
 ```bash
-scripts/to_pdf.sh INPUT.mp4 [FPS] [WIDTH] [OUTFILE]
-# e.g. scripts/to_pdf.sh demo.mp4 1 768 frames.pdf
+mkdir -p frames && ffmpeg -i INPUT.mp4 -vf "fps=1,scale=768:-1" frames/frame_%04d.jpg && img2pdf frames/frame_*.jpg -o frames.pdf
 ```
 
 ## Choosing FPS
@@ -44,7 +45,7 @@ A 60s clip at `fps=1` = 60 frames. Watch the count — each frame is tokens. If 
 
 ## Then feed the output to the model
 
-Pass the resulting `.jpg`(s) as image input. For the contact sheet, tell the model the frames are chronological left-to-right, top-to-bottom, and that timestamps are stamped top-left.
+Pass the resulting `.jpg`(s) as image input. For the contact sheet, tell the model the frames are chronological left-to-right, top-to-bottom, and give it the fps so it can place any tile in time (`tile N / fps` seconds).
 
 ## Notes
 

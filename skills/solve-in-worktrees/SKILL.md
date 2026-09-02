@@ -79,8 +79,8 @@ mcp__codex__codex { cwd: "<worktree path>", sandbox: "read-only",
 ```
 
 ```bash
-echo "<the same plan-review prompt, verbatim>" | node ~/.claude/skills/gemini-agent/scripts/run-agent.mjs \
-  --model gemini-3.1-pro-high --cwd <worktree path> --timeout 900
+echo "<the same plan-review prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+  --model gemini-3.1-pro --cwd <worktree path> --timeout 900
 ```
 
 ```bash
@@ -275,8 +275,8 @@ mcp__codex__codex  { cwd: "<worktree path>", sandbox: "read-only",
 ```
 
 ```bash
-echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/gemini-agent/scripts/run-agent.mjs \
-  --model gemini-3.1-pro-high --cwd <worktree path> --timeout 900
+echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+  --model gemini-3.1-pro --cwd <worktree path> --timeout 900
 ```
 
 ```bash
@@ -337,7 +337,10 @@ not as a blocker. Worktrees run independently; one stalling doesn't block the ot
 ## Phase 6 — PR
 
 The main session pushes (sub-agents can't) and opens the PR, following `create-pr`:
-base `staging`, assignee `Dwonczykj`.
+base `staging`, assignee `Dwonczykj`. When a worktree's PR depends on another open PR's
+branch, register the chain as a native `gh stack` (`gh stack link`, see `create-pr`
+Phase 6b) rather than hand-chaining `--base` — it sets the bases and auto-retargets on
+merge.
 
 ```bash
 git -C <worktree path> push -u origin <branch>
@@ -385,8 +388,10 @@ anything deliberately left. Keep the worktrees until the PRs merge, then
 
 - Sub-agents cannot `git push` (hook-denied) but branches they create live in the
   shared `.git` ref store, so the main session pushes them by name.
-- Dependent worktrees: if B needs A's code, A must be pushed **and merged** before B is
-  branched — agents can't see each other's local-only commits.
+- Dependent worktrees: if B needs A's code, A must be **pushed** before B is branched
+  (agents can't see each other's local-only commits) — but A need not be *merged*. Branch
+  B off `origin/<A-branch>` and open it stacked on A's PR via `gh stack link` (see Phase 6);
+  the native stack retargets B to `staging` when A merges.
 - `git commit` here can hang on pre-commit hooks; `commit-hang-guard` covers the 3-minute
   kill + `pnpm i` recovery.
 - Don't mix a refactor into a feature worktree. That's a separate worktree and PR.

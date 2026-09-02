@@ -69,6 +69,10 @@ worktrees) to implement them in the right order.
 ## Conventions (Fyxer)
 
 - Base branch is `staging`; PR titles `feat:` / `fix:` / `chore:` / `experiment:`.
+- **Stacked PRs**: create each dependent PR, then register the chain as a native `gh stack`
+  (gh ≥ 2.97) with `gh stack link --base staging <bottom-pr> … <top-pr>` — see `create-pr`
+  Phase 6b. Don't hand-chain `--base <parent-branch>` or manually re-target children on merge,
+  and don't reach for the deprecated Rust `github/gh-stack` extension.
 - Don't run repo-wide `tsc --noEmit` — verify types by reading the diff and running
   focused `pnpm --filter <pkg> typecheck`.
 - Linting from a worktree under `.claude/` silently skips files — see the

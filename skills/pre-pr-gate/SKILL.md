@@ -45,11 +45,11 @@ Run all of these; collect findings before fixing.
                        approval-policy: "never", prompt: "<see pass below>" }
    ```
 
-   Gemini side — `gemini-agent`, pinned to `gemini-3.1-pro-high` (Pro tier, high effort — the most capable Gemini slug currently offered):
+   Gemini side — via `cursor-agent`, pinned to `gemini-3.1-pro` (antigravity/`agy` is unreliable, so Gemini is routed through the Cursor CLI instead — same wrapper shape):
 
    ```bash
-   echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/gemini-agent/scripts/run-agent.mjs \
-     --model gemini-3.1-pro-high --cwd <worktree path> --timeout 900
+   echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+     --model gemini-3.1-pro --cwd <worktree path> --timeout 900
    ```
 
    Cursor side — `cursor-agent`, pinned to `claude-opus-5-high`:
@@ -104,7 +104,7 @@ checks → verify (3 passes × 3 models = 9 concurrent) → reconcile → (any P
   is the smaller diff is how scope creep gets deferred into the next PR instead of decided.
   Everything else goes straight to the fixer.
 - Send findings back to the **same** build agent via `SendMessage` if one is running (its context is intact and cheaper than a fresh spawn); otherwise apply the fixes inline. One finding per line, each with its `file:line` and which pass raised it.
-- Re-run the code gates and re-verify: `codex-reply` on each Codex pass's own thread, and a fresh `gemini-agent` and `cursor-agent` run per pass against the updated diff.
+- Re-run the code gates and re-verify: `codex-reply` on each Codex pass's own thread, and fresh `cursor-agent` runs per pass (both the `gemini-3.1-pro` and `claude-opus-5-high` pins) against the updated diff.
 - **Cap at 4 rounds.** If it hasn't released by then, stop and report what's contested — a loop that won't converge on Pass A is usually a requirement that's wrong, not code that's wrong; a loop that won't converge on Pass C's P1/P2s usually means the reviewer is over-fitting, not that the code is — cap those the same way and report them as left-deliberately, not as a blocker.
 
 ## On RELEASE
