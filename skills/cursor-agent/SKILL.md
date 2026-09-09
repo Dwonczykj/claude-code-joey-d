@@ -39,21 +39,48 @@ several (`claude-opus-5-high-fast` trades some quality for speed at the same tie
 every family has every tier — run `agent models` rather than guessing a suffix onto a
 family that doesn't list it.
 
-`agent models` (or `--list-models`) lists the full current set for your account — much
-larger and more volatile than agy's, so it isn't worth snapshotting in full here.
-Unlike `agy models`, this one is safe to call from a script (verified: no TTY-hang,
-works fine via `execFile`). Durable landmarks by family, as of 2026-08-19 (a sample, not
-the full list):
+`agent models` (or `--list-models`) lists the full current set for your account — 211
+entries as of 2026-09-07, far too many and too volatile to snapshot in full here (the
+2026-08-19 snapshot below already needed corrections three weeks later — see
+Verification). Unlike `agy models`, this one is safe to call from a script (verified: no
+TTY-hang, works fine via `execFile`). Durable landmarks by family, as of 2026-09-07 (a
+sample, not the full list):
 
 - Anthropic: `claude-opus-5-high` (the pre-pr-gate/solve-in-worktrees mirror pin),
   `claude-sonnet-5-high`
-- OpenAI: `gpt-5.3-codex-high`, `gpt-5.6-sol-high`
-- Google: `gemini-3.1-pro` (one tier only on this CLI — no `-high`/`-low` split like agy has)
-- xAI: `cursor-grok-4.6-high`, `cursor-grok-4.5-high`
+- OpenAI: `gpt-5.3-codex-high` (coding-specialized), `gpt-5.6-sol-high` (1M-context general)
+- Google: `gemini-3.1-pro` (one tier only, no `-high`/`-low` split), `gemini-3.8-flash-high`
+  (the Flash line does split by effort — `-low`/`-medium`/`-high`)
+- xAI: `cursor-grok-4.6-high` (4.5 has dropped off the list — don't pin it)
 - Moonshot: `kimi-k3-high`, `kimi-k3-max`, `kimi-k2.7-code` (code-specialized)
 - Zhipu: `glm-5.2-high`, `glm-5.2-max`
 
 `auto` (the default) lets Cursor's own router pick.
+
+## Sizing the model to the task, not just naming a family
+
+The CLI exposes no `$`/token pricing (`agent --help` has no cost flag, `agent models`
+prints names only) — Cursor bills through the app subscription, not per-call price
+lookup, so there's no dollar figure to snapshot here even if the model list were stable.
+What *is* stable is the effort-suffix gradient within a family, and it's a direct cost
+and latency dial: `none < low < medium < high < xhigh < max`. A `-thinking` variant
+spends extra tokens on hidden reasoning before answering (more cost and latency for
+harder problems); a `-fast` variant trims cost/latency off a given tier at some quality
+cost. Family weight class matters too — `mini`/`nano`/`flash` families are cheaper and
+faster than flagship families at the same effort word, by design.
+
+Match the tier to the task instead of defaulting to the biggest name available:
+
+| Task shape | Pick | Why |
+|---|---|---|
+| Trivial / mechanical — rename, one-line fix, lookup, formatting, a quick lint-comment triage | a `-low` or `-none` tier on a lightweight family: `gpt-5.4-mini-low`, `gemini-3.8-flash-low`, `claude-sonnet-5-low` | cheapest and fastest; the task has no reasoning depth to buy |
+| Everyday dev work — typical single-file bugfix or feature, a straightforward second opinion | `-medium`/`-high` non-thinking on a mid-weight family: `claude-sonnet-5-high`, `gpt-5.3-codex-high` | best cost-for-intelligence on real coding work; this is the default, not the low tier |
+| Hard / high-stakes — architecture call, adversarial review, cross-cutting refactor, an ambiguous bug | `-xhigh`/`-max` or a `-thinking` variant on a flagship family: `claude-opus-5-thinking-high`, `gpt-5.6-sol-xhigh` | needs the deepest reasoning available; cost is secondary here |
+| Second opinion / review-panel diversity | rotate across families (Opus, Grok, GLM, Kimi) rather than two effort tiers of the same family | independent failure modes matter more than squeezing one model harder |
+
+Don't guess a suffix onto a family that doesn't list it — run `agent models` (or grep
+its output) to confirm the exact slug before pinning it anywhere durable (a script, a
+review-mirror prompt, this file).
 
 **Cursor IDE's per-model enable toggles don't gate the CLI.** The IDE's model-picker
 settings let you flip individual models on/off for the interactive dropdown; a model
@@ -157,3 +184,11 @@ CLI and the wrapper. A real read-only review with `claude-opus-5-high` against t
 repo's last commit found a genuine semantic bug (a per-response tool-call cap being
 described as equivalent to a per-turn budget) and ended with a `VERDICT:` line — not an
 empty string, not a hang.
+
+## Verification (2026-09-07)
+Re-ran `agent models` (`agent --version` 2026.09.02-c22c1a3) to check the landmarks
+above: 211 slugs total. `cursor-grok-4.5-high` is gone (only 4.6 remains) — updated.
+`claude-opus-5-high`, `claude-sonnet-5-high`, `gpt-5.3-codex-high`, `gpt-5.6-sol-high`,
+`gemini-3.1-pro`, `kimi-k3-*`, `glm-5.2-*` all still resolve. Confirms the list churns
+within weeks — treat any specific slug here as a landmark to sanity-check against
+`agent models`, not a guarantee.

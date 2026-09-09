@@ -28,6 +28,26 @@
         "installedAt": "2026-08-26T07:49:55.821Z",
         "lastUpdated": "2026-08-26T20:27:09.944Z"
       }
+    ],
+    "portal@portal": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/portal/portal/0.1.0",
+        "version": "0.1.0",
+        "installedAt": "2026-09-08T06:38:25.168Z",
+        "lastUpdated": "2026-09-08T06:38:25.168Z",
+        "gitCommitSha": "3c24ca30ff63e1f5bbad1c43fe5324daff579123"
+      }
+    ],
+    "shunt@portal": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/portal/shunt/0.2.0",
+        "version": "0.2.0",
+        "installedAt": "2026-09-08T06:38:28.691Z",
+        "lastUpdated": "2026-09-08T06:38:28.691Z",
+        "gitCommitSha": "3c24ca30ff63e1f5bbad1c43fe5324daff579123"
+      }
     ]
   }
 }

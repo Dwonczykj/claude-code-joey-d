@@ -65,7 +65,9 @@
   "enabledPlugins": {
     "telegram@claude-plugins-official": false,
     "ponytail@ponytail": true,
-    "sf@sf": true
+    "sf@sf": true,
+    "portal@portal": true,
+    "shunt@portal": true
   },
   "extraKnownMarketplaces": {
     "ponytail": {
@@ -74,10 +76,10 @@
         "repo": "DietrichGebert/ponytail"
       }
     },
-    "antigravity": {
+    "portal": {
       "source": {
-        "source": "directory",
-        "path": "/private/tmp/antigravity-plugin"
+        "source": "github",
+        "repo": "spotify/portal-ai-plugins"
       }
     }
   },
