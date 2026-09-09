@@ -41,3 +41,4 @@ plugins/**
 !scheduled-tasks/
 !scheduled-tasks/**
 scheduled-tasks/**/last-successful-run.txt
+scheduled-tasks/**/*.txt
