@@ -17,16 +17,25 @@ permissions setup below also needs doing once per machine.
 
 ## Usage
 ```
-echo "<instructions>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+echo "<instructions>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
   [--model <slug>] [--timeout <seconds>] [--cwd <path>]
 ```
 `--instructions "..."` works instead of piping, for short one-liners.
 
 ## Choosing a model and reasoning effort
+
+**Default effort is `-high`, full stop.** Unless the user explicitly asks for a
+different tier, pick a `-high` slug (e.g. `claude-opus-5-high`, `gpt-5.3-codex-high`).
+Never go above it — no `-xhigh`, no `-max` — and never use a `-fast` variant either.
+Both cost more and burn usage faster than the task justifies; `-high` is the ceiling,
+not a starting point to escalate from on your own judgement. Only pick a lower tier
+(`-low`/`-none`) for genuinely trivial/mechanical work per the table below, and only go
+past `-high` if the user names that tier themselves.
+
 Pass `--model <slug>` to the wrapper — that's the whole interface:
 
 ```bash
-echo "<instructions>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs --model claude-opus-5-high
+echo "<instructions>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs --model claude-opus-5-high
 ```
 
 There is **no separate `--effort` flag** on this CLI (gemini-agent's wrapper still
@@ -74,9 +83,9 @@ Match the tier to the task instead of defaulting to the biggest name available:
 | Task shape | Pick | Why |
 |---|---|---|
 | Trivial / mechanical — rename, one-line fix, lookup, formatting, a quick lint-comment triage | a `-low` or `-none` tier on a lightweight family: `gpt-5.4-mini-low`, `gemini-3.8-flash-low`, `claude-sonnet-5-low` | cheapest and fastest; the task has no reasoning depth to buy |
-| Everyday dev work — typical single-file bugfix or feature, a straightforward second opinion | `-medium`/`-high` non-thinking on a mid-weight family: `claude-sonnet-5-high`, `gpt-5.3-codex-high` | best cost-for-intelligence on real coding work; this is the default, not the low tier |
-| Hard / high-stakes — architecture call, adversarial review, cross-cutting refactor, an ambiguous bug | `-xhigh`/`-max` or a `-thinking` variant on a flagship family: `claude-opus-5-thinking-high`, `gpt-5.6-sol-xhigh` | needs the deepest reasoning available; cost is secondary here |
-| Second opinion / review-panel diversity | rotate across families (Opus, Grok, GLM, Kimi) rather than two effort tiers of the same family | independent failure modes matter more than squeezing one model harder |
+| Everyday dev work — typical single-file bugfix or feature, a straightforward second opinion | `-high` non-thinking on a mid-weight family: `claude-sonnet-5-high`, `gpt-5.3-codex-high` | best cost-for-intelligence on real coding work; this is the default |
+| Hard / high-stakes — architecture call, adversarial review, cross-cutting refactor, an ambiguous bug | still `-high`, just on a flagship family: `claude-opus-5-high`, `gpt-5.6-sol-high` | more capable model at the same effort ceiling; don't reach for `-xhigh`/`-max`/`-thinking` unless the user names that tier |
+| Second opinion / review-panel diversity | rotate across families (Opus, Grok, GLM, Kimi) at `-high` rather than pushing effort tiers | independent failure modes matter more than squeezing one model harder |
 
 Don't guess a suffix onto a family that doesn't list it — run `agent models` (or grep
 its output) to confirm the exact slug before pinning it anywhere durable (a script, a
@@ -162,7 +171,7 @@ echo "<the review prompt, verbatim>
 Read-only review: only use git/grep/cat/find/ls to inspect the repo. Do not run
 build/test/typecheck/lint commands, and do not execute code to test a hypothesis. If a
 shell command is rejected, don't retry it — note that and continue with what's already
-visible. Do not edit, create, or delete any file." | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+visible. Do not edit, create, or delete any file." | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
   --model claude-opus-5-high --cwd <worktree path> --timeout 280
 ```
 

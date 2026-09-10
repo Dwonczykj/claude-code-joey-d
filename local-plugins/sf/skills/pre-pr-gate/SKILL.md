@@ -32,7 +32,7 @@ Run all of these; collect findings before fixing.
      implementation and the suite was legitimately red for a while — the gate runs after
      that has converged, so here a red test is a real failure, and the fix goes to the
      build agent, not to the test.
-   - types: read the diff; run `pnpm --filter <pkg> typecheck` **only if it returns quickly**. Per `/Users/joey/FyxerGh/fyxer-web-app-trees/CLAUDE.md`, **never** `tsc --noEmit` (any tsconfig — it hangs/OOMs on transitive imports).
+   - types: read the diff; run `pnpm --filter <pkg> typecheck` **only if it returns quickly**. Where the repo's `CLAUDE.md` forbids it (the Fyxer web-app does), **never** `tsc --noEmit` (any tsconfig — it hangs/OOMs on transitive imports).
    - Worktree caveat: if the worktree path contains a gitignored segment (`.claude/…`), lint/prettier silently skip files and report a false clean — see `lint-in-ignored-worktree`.
 2. **Comments review (runs straight after the code gates pass).** Scan every comment the diff adds or touches against the **stricter comment bar in Pass B below** — not the laxer `coding-standards` "warranted in practice" list. Delete any that record change history or a decision that belongs in the PR description (`// PR-1 did X`, `// kept for now, remove after Y`), restate the next line, are JSDoc repeating the signature, or describe *what* the code currently does. Keep a comment only if it survives Pass B's test — it explains *why* the code must be this way for a reason that can't be expressed in code and can't go stale. One exception to the delete: a would-be "external constraint" comment whose fact could quietly become false is the divergent class — **flag it for the user, don't delete it** (Pass B's flag tier). Track a temporary-scaffolding cleanup as `TODO(<ISSUE>)`, never as prose narrating the plan. This is the cheap deterministic first catch; Pass B's three code-quality models are the backstop.
 3. **diff-review.** Run the `diff-review` skill against the base (default `staging`): correctness → minimality → dead-code, auto-applying safe fixes. This shrinks the diff and removes what Bugbot would otherwise comment on.
@@ -48,14 +48,14 @@ Run all of these; collect findings before fixing.
    Gemini side — via `cursor-agent`, pinned to `gemini-3.1-pro` (antigravity/`agy` is unreliable, so Gemini is routed through the Cursor CLI instead — same wrapper shape):
 
    ```bash
-   echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+   echo "<the same pass prompt, verbatim>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
      --model gemini-3.1-pro --cwd <worktree path> --timeout 900
    ```
 
    Cursor side — `cursor-agent`, pinned to `claude-opus-5-high`:
 
    ```bash
-   echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+   echo "<the same pass prompt, verbatim>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
      --model claude-opus-5-high --cwd <worktree path> --timeout 900
    ```
 

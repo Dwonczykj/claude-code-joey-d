@@ -12,20 +12,24 @@ Creates a **dedicated sibling worktree** of the Fyxer web-app so a branch can ru
 - **worktree name** (optional) — short dir name; default to a slug of the branch.
 
 ## Paths
-- Main worktree (env-file source): `/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app`
-- New worktree: `/Users/joey/FyxerGh/fyxer-web-app-trees/<name>` (worktrees live as siblings under `fyxer-web-app-trees/`)
+
+Derive both from git so this works wherever the repo is checked out (no hardcoded home path). Run this from inside any worktree of the repo, then reuse `$MAIN` / `$NEW` in the steps below:
+```bash
+MAIN=$(git worktree list --porcelain | sed -n 's/^worktree //p' | head -1)  # main worktree = env-file source
+TREES_ROOT=$(dirname "$MAIN")                                               # worktrees live as siblings here
+NEW="$TREES_ROOT/<name>"                                                     # the new worktree to create
+```
 
 ## Steps
 
 1. **Create the worktree** (from any existing worktree of the repo):
-   - `git worktree add /Users/joey/FyxerGh/fyxer-web-app-trees/<name> <branch>`
-   - If the branch is only on origin: `git worktree add <path> -b <branch> origin/<branch>`
+   - `git worktree add "$NEW" <branch>`
+   - If the branch is only on origin: `git worktree add "$NEW" -b <branch> origin/<branch>`
    - If git says the branch is already checked out elsewhere, reuse that worktree instead.
 
 2. **Copy the gitignored local env/secret files** from the main worktree. The worktree-add hook auto-copies `dataScience/.env.*` but NOT these three, and the servers fail without them:
    ```bash
-   MAIN=/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app
-   NEW=/Users/joey/FyxerGh/fyxer-web-app-trees/<name>
+   # $MAIN and $NEW as derived in ## Paths above
    for f in app/.env.local functions/.env.local functions/.secret.local; do cp "$MAIN/$f" "$NEW/$f"; done
    ```
    `functions/.env.local` is REQUIRED — `functions:dev` errors `functions/.env.local not found` without it (it's separate from `.secret.local`).
@@ -57,8 +61,8 @@ Creates a **dedicated sibling worktree** of the Fyxer web-app so a branch can ru
 
 7. **Hand the user the two dev-server commands** (run in separate terminals, or via `run_in_background`):
    ```bash
-   cd /Users/joey/FyxerGh/fyxer-web-app-trees/<name> && pnpm functions:dev   # Firebase emulators; UI at http://localhost:4000
-   cd /Users/joey/FyxerGh/fyxer-web-app-trees/<name> && pnpm app:dev         # Vite frontend at http://localhost:5173
+   cd "$NEW" && pnpm functions:dev   # Firebase emulators; UI at http://localhost:4000
+   cd "$NEW" && pnpm app:dev         # Vite frontend at http://localhost:5173
    ```
 
 ## Gotchas

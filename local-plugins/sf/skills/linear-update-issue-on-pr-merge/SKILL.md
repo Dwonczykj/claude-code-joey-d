@@ -16,7 +16,7 @@ When a PR is merged (typically into `staging`), find the matching Linear issue i
 
 Try in order, stop at first hit:
 
-1. **PR title / branch name**: look for a `PRE-\d+` identifier. Branch names in this repo follow `joeydwonczyk/<slug>` style — they often don't carry the ID, so prefer the PR title / body.
+1. **PR title / branch name**: look for a `PRE-\d+` identifier. Branch names follow `<author-prefix>/<slug>` style — they often don't carry the ID, so prefer the PR title / body.
 2. **PR body**: grep the PR description for `PRE-\d+` or a `linear.app/fyxer-ai/issue/PRE-...` URL.
 3. **Recent commits on the branch**: `git log --format=%B origin/staging..HEAD` (or the merged range) and grep for `PRE-\d+`.
 4. If still nothing, ask the user for the issue ID — do not guess.

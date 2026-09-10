@@ -3,6 +3,7 @@
 
 # Exceptions
 !.gitignore
+!README.md
 !CLAUDE.md
 !COMMANDS.md
 !MCP.md

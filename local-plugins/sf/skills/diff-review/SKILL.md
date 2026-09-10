@@ -23,7 +23,7 @@ User asks to review, polish, or shrink a diff before opening / merging a PR. Exa
 - **Don't game LoC.** Keep names readable. Don't collapse readable multi-line code into one-liners just to shrink the diff. Don't strip whitespace inside strings. Don't remove blank lines that exist for readability.
 - **Don't introduce new abstractions** to shrink a diff. The goal is to remove unnecessary additions, not invent helpers.
 - **Never run destructive git** (`reset --hard`, `clean -f`, force push, branch deletion). The user's working tree is the source of truth.
-- **Don't run `tsc --noEmit`** in this repo (per `/Users/joey/FyxerGh/fyxer-web-app-trees/CLAUDE.md`). Verify types by reading the diff.
+- **Don't run `tsc --noEmit`** where the repo's `CLAUDE.md` forbids it (the Fyxer web-app does — transitive imports hang/OOM). Verify types by reading the diff.
 - **Stop and ask** if a finding requires a product/design decision, removes a public API, or you can't tell whether code is reachable. Loop terminates on a clarifying question.
 
 ## Setup (once, before the loop)

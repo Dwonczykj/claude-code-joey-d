@@ -33,17 +33,23 @@ PRs is outward-facing; don't start without that yes.
 
 ## Phase 1 — One worktree per split
 
-Branch names follow `/create-branch`: `joeydwonczyk/<type>-<LINEAR-CODE>-<kebab-title>`
-(drop the code segment if there's no issue). Base is `origin/staging` for web-app,
+Branch names follow `/create-branch`: `<prefix>/<type>-<LINEAR-CODE>-<kebab-title>`
+(drop the code segment if there's no issue). `<prefix>` is the plugin's configured
+author prefix, resolved below. Base is `origin/staging` for web-app,
 `origin/main` for `Fyxer-AI/eval`.
 
 ```bash
 git fetch origin
-git worktree add /Users/joey/FyxerGh/fyxer-web-app-trees/<slug> -b joeydwonczyk/<type>-<CODE>-<title> origin/staging
-cd /Users/joey/FyxerGh/fyxer-web-app-trees/<slug> && pnpm i --prefer-offline
+# Author prefix: the plugin's branchPrefix option, else your shell username (see /create-branch).
+PREFIX='${user_config.branchPrefix}'
+case "$PREFIX" in ''|*user_config.branchPrefix*) PREFIX="$(whoami)" ;; esac
+# Siblings live next to the repo's MAIN worktree, wherever it's checked out — no hardcoded home path.
+TREES_ROOT=$(dirname "$(git worktree list --porcelain | sed -n 's/^worktree //p' | head -1)")
+git worktree add "$TREES_ROOT/<slug>" -b "$PREFIX/<type>-<CODE>-<title>" origin/staging
+cd "$TREES_ROOT/<slug>" && pnpm i --prefer-offline
 ```
 
-- Worktrees are **siblings** under `fyxer-web-app-trees/`. Never nest one under
+- Worktrees are **siblings** of the main worktree. Never nest one under
   `.claude/` or any gitignored path — prettier/oxlint silently skip those files and
   `pnpm lint` reports a false clean (see `lint-in-ignored-worktree`).
 - `node_modules` is per-worktree; the install is needed before any lint runs.
@@ -79,12 +85,12 @@ mcp__codex__codex { cwd: "<worktree path>", sandbox: "read-only",
 ```
 
 ```bash
-echo "<the same plan-review prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+echo "<the same plan-review prompt, verbatim>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
   --model gemini-3.1-pro --cwd <worktree path> --timeout 900
 ```
 
 ```bash
-echo "<the same plan-review prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+echo "<the same plan-review prompt, verbatim>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
   --model claude-opus-5-high --cwd <worktree path> --timeout 900
 ```
 
@@ -275,12 +281,12 @@ mcp__codex__codex  { cwd: "<worktree path>", sandbox: "read-only",
 ```
 
 ```bash
-echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+echo "<the same pass prompt, verbatim>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
   --model gemini-3.1-pro --cwd <worktree path> --timeout 900
 ```
 
 ```bash
-echo "<the same pass prompt, verbatim>" | node ~/.claude/skills/cursor-agent/scripts/run-agent.mjs \
+echo "<the same pass prompt, verbatim>" | node ${CLAUDE_PLUGIN_ROOT}/skills/cursor-agent/scripts/run-agent.mjs \
   --model claude-opus-5-high --cwd <worktree path> --timeout 900
 ```
 

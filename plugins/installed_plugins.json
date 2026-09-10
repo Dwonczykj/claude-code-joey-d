@@ -23,10 +23,10 @@
     "sf@sf": [
       {
         "scope": "user",
-        "installPath": "/Users/joey/.claude/plugins/cache/sf/sf/0.1.2",
-        "version": "0.1.2",
+        "installPath": "/Users/joey/.claude/plugins/cache/sf/sf/0.3.0",
+        "version": "0.3.0",
         "installedAt": "2026-08-26T07:49:55.821Z",
-        "lastUpdated": "2026-08-26T20:27:09.944Z"
+        "lastUpdated": "2026-09-10T13:55:53.812Z"
       }
     ],
     "portal@portal": [

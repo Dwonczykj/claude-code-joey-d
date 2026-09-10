@@ -1,6 +1,6 @@
 ---
 name: pr-split-audit
-description: Audit an open PR (or fresh PRD) and decide whether it should be split into smaller sub-PRs so that the bulk of the work is auto-approvable by Cursor Bugbot and merges to base cleanly. Produces a per-slice split plan keyed to natural seams (additive types, behaviour-preserving refactors, one-line scope tweaks, independent UX, the feature core). Use when a PR is flagged Medium-risk by Cursor, when a PRD bundles a refactor + a feature, or when the user says "split this PR", "is this PR too big", "audit for sub-PRs", "create-PRD-post", "should this be multiple PRs". Saves the split plan to `/Users/joey/.claude/plans/<slug>.md` and (on approval) drives sub-agents in isolated worktrees to open each sub-PR + Linear sub-issue.
+description: Audit an open PR (or fresh PRD) and decide whether it should be split into smaller sub-PRs so that the bulk of the work is auto-approvable by Cursor Bugbot and merges to base cleanly. Produces a per-slice split plan keyed to natural seams (additive types, behaviour-preserving refactors, one-line scope tweaks, independent UX, the feature core). Use when a PR is flagged Medium-risk by Cursor, when a PRD bundles a refactor + a feature, or when the user says "split this PR", "is this PR too big", "audit for sub-PRs", "create-PRD-post", "should this be multiple PRs". Saves the split plan to `~/.claude/plans/<slug>.md` and (on approval) drives sub-agents in isolated worktrees to open each sub-PR + Linear sub-issue.
 user_invocable: true
 ---
 
@@ -65,7 +65,7 @@ Pick a merge order that:
 
 ## Phase 4: Write the plan
 
-Save a plan to `/Users/joey/.claude/plans/<slug>.md` (or the path the harness gives you in plan mode). Sections:
+Save a plan to `~/.claude/plans/<slug>.md` (or the path the harness gives you in plan mode). Sections:
 
 - **Context** — why this PR is being split (link the bot verdict).
 - **Approach** — one-line summary of the slicing strategy.
