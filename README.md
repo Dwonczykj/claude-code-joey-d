@@ -4,12 +4,19 @@ Joey's personal Claude Code config. The one thing here worth installing is the *
 
 ## Install the `sf` plugin
 
+On any machine, straight from this repo — one line:
+
 ```bash
-claude plugin marketplace add ~/.claude/local-plugins/sf
-claude plugin install sf@sf
+claude plugin marketplace add Dwonczykj/claude-code-joey-d && claude plugin install sf@sf
 ```
 
-Or, inside Claude Code: `/plugin marketplace add ~/.claude/local-plugins/sf` then `/plugin install sf@sf`.
+Inside Claude Code the equivalent is `/plugin marketplace add Dwonczykj/claude-code-joey-d` then `/plugin install sf@sf`. (`install` takes `plugin@marketplace`, not a URL, so the marketplace is added first — the `&&` makes it one command.)
+
+For local development against the working tree instead of the pushed repo, point the marketplace at the directory:
+
+```bash
+claude plugin marketplace add ~/.claude/local-plugins/sf && claude plugin install sf@sf
+```
 
 Then run `/sf:install` once per machine to check its external deps (Cursor CLI, Codex CLI) and set your branch prefix. What each command does, and a diagram of how `start-feature` works, is in **[local-plugins/sf/README.md](local-plugins/sf/README.md)**.
 

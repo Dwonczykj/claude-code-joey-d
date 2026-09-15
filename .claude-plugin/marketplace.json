@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "sf",
+  "description": "Joey's software-factory pipeline as sf: commands.",
+  "owner": {
+    "name": "Joey Dwonczyk"
+  },
+  "plugins": [
+    {
+      "name": "sf",
+      "source": "./local-plugins/sf",
+      "description": "Software factory: idea -> open PR through a left-shifted, gated pipeline. sf:install, sf:start-feature, sf:plan, sf:build, sf:build-verify, sf:review, sf:ci-green, sf:model-provider.",
+      "category": "workflow"
+    }
+  ]
+}
