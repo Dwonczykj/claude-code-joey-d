@@ -1,30 +1,28 @@
 # claude-code-joey-d
 
-Joey's personal Claude Code config: skills (`skills/`), subagents (`agents/`), settings, hooks, and local plugins (`local-plugins/`).
+Joey's personal Claude Code config. The one thing here worth installing is the **`sf` software factory** plugin — an `idea → open PR` pipeline of gated `sf:` commands. Everything else (skills, subagents, hooks, settings) is personal setup.
 
-## Local plugins
+## Install the `sf` plugin
 
-Local plugins live under `local-plugins/<name>/` and are registered as a `directory` marketplace (see `plugins/known_marketplaces.json`). The copy Claude Code actually loads is a **cached snapshot** under `plugins/cache/<marketplace>/<name>/<version>/` — editing the source in `local-plugins/` does **not** hot-reload it.
-
-### Editing and reloading a local plugin
-
-After changing anything under `local-plugins/<name>/` (commands, skills, agents, workflows, or `plugin.json`):
-
-1. **Bump `version`** in `local-plugins/<name>/.claude-plugin/plugin.json`. The cache is keyed by version — without a bump, step 2 reports "already at the latest version" and copies nothing.
-2. **Sync the cache from source:**
-   ```bash
-   claude plugin update <name>@<marketplace>
-   ```
-   For this repo's `sf` plugin that's `claude plugin update sf@sf`, or just run `/sf:reload` inside Claude Code (it wraps the same command).
-3. **Restart Claude Code.** The update prints "Restart to apply changes" — the new version only loads in a fresh session.
-
-Validate a manifest (and its bundled skills/agents/commands) before reloading:
 ```bash
-claude plugin validate local-plugins/<name>
+claude plugin marketplace add ~/.claude/local-plugins/sf
+claude plugin install sf@sf
 ```
 
-First install on a new machine, if the marketplace isn't registered yet:
+Or, inside Claude Code: `/plugin marketplace add ~/.claude/local-plugins/sf` then `/plugin install sf@sf`.
+
+Then run `/sf:install` once per machine to check its external deps (Cursor CLI, Codex CLI) and set your branch prefix. What each command does, and a diagram of how `start-feature` works, is in **[local-plugins/sf/README.md](local-plugins/sf/README.md)**.
+
+## Editing and reloading the plugin
+
+The copy Claude Code loads is a **cached snapshot** under `plugins/cache/sf/sf/<version>/` — editing the source in `local-plugins/sf/` does not hot-reload it. After changing anything under `local-plugins/sf/`:
+
+1. **Bump `version`** in `local-plugins/sf/.claude-plugin/plugin.json` (the cache is keyed by version — without a bump, the update copies nothing).
+2. **Sync the cache:** `claude plugin update sf@sf`, or `/sf:reload` inside Claude Code.
+3. **Restart Claude Code** — the new version only loads in a fresh session.
+
+Validate a manifest (and its bundled skills/agents/commands) before reloading:
+
 ```bash
-claude plugin marketplace add ~/.claude/local-plugins/<name>
-claude plugin install <name>@<name>
+claude plugin validate local-plugins/sf
 ```
