@@ -4,19 +4,26 @@ Joey's personal Claude Code config. The one thing here worth installing is the *
 
 ## Install the `sf` plugin
 
-On any machine, straight from this repo — one line:
+The plugin is published as its own repo, [`Dwonczykj/sf`](https://github.com/Dwonczykj/sf), so installing it doesn't pull this whole personal config. One line, shareable with anyone:
 
 ```bash
-claude plugin marketplace add Dwonczykj/claude-code-joey-d && claude plugin install sf@sf
+claude plugin marketplace add Dwonczykj/sf && claude plugin install sf@sf
 ```
 
-Inside Claude Code the equivalent is `/plugin marketplace add Dwonczykj/claude-code-joey-d` then `/plugin install sf@sf`. (`install` takes `plugin@marketplace`, not a URL, so the marketplace is added first — the `&&` makes it one command.)
+Inside Claude Code: `/plugin marketplace add Dwonczykj/sf` then `/plugin install sf@sf`. (`install` takes `plugin@marketplace`, not a URL, so the marketplace is added first — the `&&` makes it one command.)
 
-For local development against the working tree instead of the pushed repo, point the marketplace at the directory:
+### Where the plugin lives, and publishing changes
 
-```bash
-claude plugin marketplace add ~/.claude/local-plugins/sf && claude plugin install sf@sf
-```
+The source of truth is `local-plugins/sf/` in **this** repo. `Dwonczykj/sf` is a `git subtree` mirror of that directory. Workflow:
+
+1. Edit under `local-plugins/sf/`, bump its `plugin.json` version, commit here.
+2. Publish the change to the standalone repo:
+   ```bash
+   git subtree push --prefix=local-plugins/sf sf-dist main
+   ```
+   (`sf-dist` is the remote for `Dwonczykj/sf`; add it once with `git remote add sf-dist https://github.com/Dwonczykj/sf.git`.)
+
+For local dev against the working tree, point a marketplace at the directory: `claude plugin marketplace add ~/.claude/local-plugins/sf`.
 
 Then run `/sf:install` once per machine to check its external deps (Cursor CLI, Codex CLI) and set your branch prefix. What each command does, and a diagram of how `start-feature` works, is in **[local-plugins/sf/README.md](local-plugins/sf/README.md)**.
 

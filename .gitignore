@@ -3,8 +3,6 @@
 
 # Exceptions
 !.gitignore
-!.claude-plugin/
-!.claude-plugin/**
 !README.md
 !CLAUDE.md
 !COMMANDS.md
