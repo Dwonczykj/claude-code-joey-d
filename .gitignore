@@ -40,11 +40,30 @@ plugins/**
 !mcp/**
 
 # scheduled-tasks: ignored by default so new tasks don't land in the repo.
-# Already-tracked tasks stay tracked (gitignore doesn't untrack). To keep a NEW
-# task, ! both its dir and its contents below (e.g. the two commented lines).
+# To keep a task tracked, ! both its dir and its contents in the list below.
 !scheduled-tasks/
 scheduled-tasks/**
+# Kept tasks (tracked; new files in them stay committable):
+!scheduled-tasks/check-work-in-linear/
+!scheduled-tasks/check-work-in-linear/**
+!scheduled-tasks/collect-and-synthesize-desk/
+!scheduled-tasks/collect-and-synthesize-desk/**
+!scheduled-tasks/webapp-failed-actions-hourly/
+!scheduled-tasks/webapp-failed-actions-hourly/**
+!scheduled-tasks/weekly-pod-context-shipped-html/
+!scheduled-tasks/weekly-pod-context-shipped-html/**
+!scheduled-tasks/weekly-product-changes-html/
+!scheduled-tasks/weekly-product-changes-html/**
+!scheduled-tasks/weekly-what-ive-done-notes/
+!scheduled-tasks/weekly-what-ive-done-notes/**
+!scheduled-tasks/screenshot-to-notes/
+!scheduled-tasks/screenshot-to-notes/**
+!scheduled-tasks/record-claude-code-work/
+!scheduled-tasks/record-claude-code-work/**
+!scheduled-tasks/meeting-to-wiki/
+!scheduled-tasks/meeting-to-wiki/**
+!scheduled-tasks/organise-notes/
+!scheduled-tasks/organise-notes/**
+# Run artifacts never tracked, even for kept tasks (must stay after the ! lines):
 scheduled-tasks/**/last-successful-run.txt
 scheduled-tasks/**/*.txt
-# !scheduled-tasks/<task-name>/
-# !scheduled-tasks/<task-name>/**
