@@ -39,7 +39,12 @@ plugins/**
 !mcp/
 !mcp/**
 
+# scheduled-tasks: ignored by default so new tasks don't land in the repo.
+# Already-tracked tasks stay tracked (gitignore doesn't untrack). To keep a NEW
+# task, ! both its dir and its contents below (e.g. the two commented lines).
 !scheduled-tasks/
-!scheduled-tasks/**
+scheduled-tasks/**
 scheduled-tasks/**/last-successful-run.txt
 scheduled-tasks/**/*.txt
+# !scheduled-tasks/<task-name>/
+# !scheduled-tasks/<task-name>/**

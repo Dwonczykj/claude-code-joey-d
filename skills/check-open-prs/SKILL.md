@@ -5,6 +5,8 @@ description: Sweep every open PR you have in Fyxer-AI/web-app and print grouped 
 
 # Check Open PRs
 
+First, set this session's title to `Open PRs - <MMM dd - HH:mm>` (e.g. `Open PRs - Sep 10 - 14:32`, local time) via `set_session_title`. Do this before anything else.
+
 Terminal-markdown only. Repo `Fyxer-AI/web-app`, author `@me`, **state open** (every open PR, no time window). Reuses the `gh`/GraphQL/Linear plumbing from `pr-tree-review` — read that skill's Step 2 for the exact bot-thread and check queries. No Excalidraw here.
 
 ## Step 1 — list every open PR

@@ -66,8 +66,8 @@
     "telegram@claude-plugins-official": false,
     "ponytail@ponytail": true,
     "sf@sf": true,
-    "portal@portal": true,
-    "shunt@portal": true
+    "portal@portal": false,
+    "shunt@portal": false
   },
   "extraKnownMarketplaces": {
     "ponytail": {
@@ -93,5 +93,6 @@
   "skipAutoPermissionPrompt": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754131276564
-  }
+  },
+  "outputStyle": "Concise"
 }

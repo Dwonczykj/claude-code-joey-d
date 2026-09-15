@@ -24,7 +24,7 @@ You need what shipped. Get it from the PR the user gives you (`gh pr view <n> --
 _*Mike*: <one sentence - what this gives Mike, the bottom-up champion who lives in his inbox and can't afford to miss>._
 _*Eve*: <one sentence - what this gives Eve, the buyer who rolls Fyxer out to a team>._
 
-_<#C08H09CHTQQ|topic-product-release>_
+_#topic-product-release_
 ```
 
 ## Rules that make it sound like Joey (not AI)
@@ -42,7 +42,7 @@ _<#C08H09CHTQQ|topic-product-release>_
 
 1. Read the PR (or the user's description) for the real Problem and Changes.
 2. Draft the message in the exact shape above.
-3. Present it in a code block so the user can copy it, and remind them to add screenshots before posting (the Solution line points at them).
+3. Present it as formatted text directly in the response (bold/italic rendered, not a code block) so the user can select and copy it as-is - a code block copies the literal markdown, which doesn't render in Slack. Remind them to add screenshots before posting (the Solution line points at them).
 4. Do not post it. If the user wants it formatted for paste, offer `/format-slack-message`.
 
 ## Reference: what Joey actually shipped (2026-09-02)
@@ -57,5 +57,5 @@ _<#C08H09CHTQQ|topic-product-release>_
 _*Mike*: one searchable home for everything he's asked Fyxer, email included, so nothing quietly disappears._
 _*Eve*: a complete record of how her team actually uses Fyxer._
 
-_<#C08H09CHTQQ|topic-product-release>_
+_#topic-product-release_
 ```
