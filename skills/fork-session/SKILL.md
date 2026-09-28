@@ -31,29 +31,55 @@ claude --bg \
   "<prompt>"
 ```
 
-- `--model`: alias (`sonnet`, `opus`, `fable`) or full name (`claude-sonnet-5`). Omit to
-  inherit the caller's default.
+- `--model`: alias (`sonnet`, `opus`, `fable`) for each family's current default, or a
+  full name for a specific version. Omit to inherit the caller's default. When the user
+  names a model the way the model switcher shows it (screenshot-named, e.g. "Opus 4.8"),
+  map it to its full id — dot becomes dash, no other change — rather than guessing:
+
+  | Name shown in the switcher | `--model` value |
+  |---|---|
+  | Opus 5.5 | `claude-opus-5-5` |
+  | Opus 5 | `claude-opus-5` |
+  | Opus 4.8 | `claude-opus-4-8` |
+  | Opus 4.7 | `claude-opus-4-7` |
+  | Opus 4.6 | `claude-opus-4-6` |
+  | Fable 5.1 | `claude-fable-5-1` |
+  | Sonnet 5 | `claude-sonnet-5` |
+  | Sonnet 4.6 | `claude-sonnet-4-6` |
+  | Haiku 4.5 | `claude-haiku-4-5-20251001` |
+
+  This list is whatever was in the switcher as of 2026-09-23 — it changes as models
+  ship/retire, so if the user names something not on it, pass it through as given
+  (dot-to-dash) rather than refusing or guessing a different id. Other skills that spawn
+  a `fork-session` with a user-named model (e.g. `pull-impact-evidence`) should point
+  here instead of keeping their own copy of this table.
 - `--effort`: omit to inherit default; set explicitly when the user asked for a specific
   tier.
 - `-n/--name`: always set one explicitly — never let it auto-generate from cwd (that's
   where names like `fyxer-web-app-b9` come from: a directory slug plus a random suffix,
   which tells you nothing about the task and is useless for linking a session back to
-  what it's for). Build it as `<action>-<subject>`, both short kebab-case words:
-  - `action` is what the session is *doing* — `gate`, `review`, `fix`, `rebase`,
-    `stage2`, `migrate`, `docs` — not a generic word like `task` or `work`.
-  - `subject` is the most durable handle a human would recognize later — prefer a
-    ticket/issue number (`pre3245`) or PR number (`pr11216`) over a branch name or free
-    text description, since those don't drift as the task's wording changes and they're
-    exactly what someone greps `claude agents` for six months on. Fall back to a short
-    slug of the actual subject only when there's no number to anchor to.
-  - Good: `stage2-pr11216`, `fix-bot-11168`, `rebase-11168`, `gate-slice-b`,
-    `docs-pre3245-followup`. Bad: `fyxer-web-app-b9` (no task info), `task1` / `worker`
-    (no subject info), a long free-text sentence (defeats "short").
+  what it's for). Build it as `<feature>-<intent>`, short kebab-case, derived from the
+  title of the session this skill is being called from plus what the fork is being asked
+  to do:
+  - `feature` is the PR feature being worked on, taken from the *current session's
+    title* — the session the skill fires from already names the feature, so reuse that
+    handle (fetch it with `mcp__ccd_session_mgmt__get_session` if it isn't obvious from
+    context). Slug it to a couple of durable words: a title like "Contextual speaker
+    naming for shared rooms" becomes `speaker-naming`.
+  - `intent` is what *this fork* is doing — `gate`, `review`, `fix`, `rebase`, `stage2`,
+    `migrate`, `docs` — not a generic word like `task` or `work`.
+  - Do **not** put a PRE or PR number in the name. The feature slug from the session
+    title is the anchor now; numbers drift out of the title and add nothing a human
+    greps for.
+  - Good: `speaker-naming-gate`, `outlook-addin-review`, `memory-recall-fix`,
+    `connector-factory-rebase`. Bad: `fyxer-web-app-b9` (no task info), `task1` /
+    `worker` (no feature info), `stage2-pr11216` (carries a number, no feature), a long
+    free-text sentence (defeats "short").
   - The name shows up in `claude agents`, `/resume`, and the terminal title, so it's the
     *only* thing distinguishing this session from every other one running against the
     same repo — never reuse a name for a different task, and don't let two concurrent
-    sessions on the same subject collide (append `-a`/`-b` or a second qualifier if
-    genuinely needed, rather than dropping the subject to stay short).
+    sessions on the same feature collide (append `-a`/`-b` or a second qualifier if
+    genuinely needed, rather than dropping the feature to stay short).
 - `--worktree [name]`: add this when the task will edit files in a git repo and
   shouldn't collide with the current working tree (verified: composes cleanly with
   `--bg`, creates `.claude/worktrees/<name>`, session's cwd becomes that worktree). Skip
@@ -82,7 +108,7 @@ Do not poll it yourself in a sleep loop — either wait for the user to ask, or 
 - **Not free**: this is a separate billed session, not a lightweight subagent. Don't use
   it for work the in-process `Agent` tool already covers.
 - **Naming collisions**: `SendMessage` resolves the bare name to whichever session most
-  recently claimed it — the `<action>-<subject>` pattern above already avoids most
-  collisions since the subject anchor (ticket/PR number) is unique per task; still check
-  `ListAgents` before spawning if the user has several sessions going on the same PR or
-  ticket.
+  recently claimed it — the `<feature>-<intent>` pattern above avoids most collisions
+  since the intent distinguishes forks off the same feature; still check `ListAgents`
+  before spawning if the user has several sessions going on the same feature, and add a
+  qualifier if two would share a name.
