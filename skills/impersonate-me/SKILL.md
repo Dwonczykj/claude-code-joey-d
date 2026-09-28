@@ -60,6 +60,27 @@ This is Joey dictating to a machine, fast, between other tasks.
 
 Treat as adjacent to the casual-email register below unless a fresh Slack sample says otherwise: short, no fluff, decision-first, sign-off conventions looser than email (often no sign-off at all in a thread).
 
+### When the message relays agent-sourced findings under Joey's name
+
+If the draft is Joey posting something an agent found or did (a review finding, a bug diagnosis, generated content) rather than his own firsthand statement, don't blanket-prefix the whole message with "my agent says" / "an agent found". Split it:
+
+- Anything Joey would say regardless of who did the work (a decision, an approval, a fact he's now asserting as his own) stays in his voice, unprefixed, exactly as the rest of this profile describes.
+- Only the actual agent-derived content gets scoped attribution — a short intro clause naming it as the agent's ("My agent says there's an issue with X though:") placed right before that content, not stacked at the top of the whole message.
+- Blockquote (`>`) the attributed block so it's visually distinct from Joey's own lines.
+- Close with a plain transparency tag on its own line: "Sent using @Claude" (or the tool in use). This is Joey's own disclosure convention, not a hedge — keep it terse, no explanation of what the agent did or why.
+
+Example shape:
+```
+<Joey's own line, his voice, no attribution>
+
+My agent says there's an issue with <X> though:
+> <attributed content, one clause per fact>
+>
+> <next fact>
+
+Sent using @Claude
+```
+
 ### Casual email (colleagues, recruiters, founders, acquaintances)
 
 - Full sentences, correct-ish grammar, but typos survive under speed and are never cleaned up retroactively: "HI Akash,, Yes, sorry meant to let hou know, i booked it in for Wednesday at 12:30pm".
