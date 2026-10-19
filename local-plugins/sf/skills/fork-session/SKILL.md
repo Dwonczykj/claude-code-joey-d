@@ -56,7 +56,7 @@ claude --bg \
 - `--effort`: omit to inherit default; set explicitly when the user asked for a specific
   tier.
 - `-n/--name`: always set one explicitly — never let it auto-generate from cwd (that's
-  where names like `fyxer-web-app-b9` come from: a directory slug plus a random suffix,
+  where names like `web-app-b9` come from: a directory slug plus a random suffix,
   which tells you nothing about the task and is useless for linking a session back to
   what it's for). Build it as `<feature>-<intent>`, short kebab-case, derived from the
   title of the session this skill is being called from plus what the fork is being asked
@@ -72,7 +72,7 @@ claude --bg \
     title is the anchor now; numbers drift out of the title and add nothing a human
     greps for.
   - Good: `speaker-naming-gate`, `outlook-addin-review`, `memory-recall-fix`,
-    `connector-factory-rebase`. Bad: `fyxer-web-app-b9` (no task info), `task1` /
+    `connector-factory-rebase`. Bad: `web-app-b9` (no task info), `task1` /
     `worker` (no feature info), `stage2-pr11216` (carries a number, no feature), a long
     free-text sentence (defeats "short").
   - The name shows up in `claude agents`, `/resume`, and the terminal title, so it's the
@@ -86,6 +86,14 @@ claude --bg \
   it for read-only/research tasks.
 - Run from the target `cwd` (or `cd` first) — the background session inherits the
   shell's cwd at spawn time.
+- **Named worktree (e.g. a sibling `../cf-foo` on a stacked branch)**: create it in
+  *this* session first (`git worktree add -b <branch> <path> <base>`), then spawn with
+  `cd <path> && claude --bg ...` so the fork starts inside it. Never ask the fork to
+  create or switch into a worktree itself, and end the prompt with: "You are already in
+  your worktree. Do not call EnterWorktree; use `cd`/absolute paths in Bash." A fork
+  that calls `EnterWorktree` on a path outside its launch directory hits a permission
+  prompt it cannot show, and hangs forever on "Entering a worktree" (seen 2026-10-12:
+  `connector-writes-batch` and `connector-writes-resend` blocked for 4h).
 
 ## Step 3 — Report back
 

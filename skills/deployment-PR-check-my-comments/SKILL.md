@@ -31,7 +31,7 @@ A Slack message link to the deploy thread (channel `C08J0D54FV2`, "Prod release:
 
 5. **For each in-scope comment, classify and act:**
    - **Blocker** (his change will break in production): do NOT approve. Reply in the Slack thread with 🔴 and "blocker, [what] before release" + a link to the comment(s). A fix merged to staging ahead of release is critical here.
-   - **Real but non-breaking**: fix it in a **fork-session** that PRs to staging (do not block), reply on the PR comment with the resolution, and resolve the thread.
+   - **Real but non-breaking**: fix it in a **`sf:fork-session`** that PRs to staging (do not block), reply on the PR comment with the resolution, and resolve the thread.
    - **Not worth fixing / stale / can't-occur**: reply on the thread with the reason and resolve it.
 
 6. **Unblock and report in Slack** (only after in-scope comments are handled):

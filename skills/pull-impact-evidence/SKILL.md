@@ -9,9 +9,9 @@ arguments: "[feature / PR / ticket / prior claim to check]"
 
 Evidence-gathering step that feeds `update-impact-log` / `update-no-impact-log`. Those two skills draft an entry from whatever's already known; this skill goes and checks, so the entry isn't built on a single naive metric or a hunch.
 
-Long-running and multi-source — for a feature that needs a real dig, prefer running this via `fork-session` (high effort) so it works in the background rather than blocking the conversation. For a quick check, run it inline.
+Long-running and multi-source — for a feature that needs a real dig, prefer running this via `sf:fork-session` (high effort) so it works in the background rather than blocking the conversation. For a quick check, run it inline.
 
-**Model:** default to Opus 4.8 (`--model claude-opus-4-8`) unless Joey names a different one. If he does, use the model lookup table in the `fork-session` skill to map whatever he says to its full id — don't keep a second copy of that table here.
+**Model:** default to Opus 4.8 (`--model claude-opus-4-8`) unless Joey names a different one. If he does, use the model lookup table in the `sf:fork-session` skill to map whatever he says to its full id — don't keep a second copy of that table here.
 
 ## Flow
 
