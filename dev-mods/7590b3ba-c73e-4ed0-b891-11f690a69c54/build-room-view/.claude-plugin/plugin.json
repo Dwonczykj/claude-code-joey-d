@@ -1,0 +1,6 @@
+{
+  "name": "build-room-view",
+  "version": "0.1.0",
+  "description": "Shows the Build Room inbox and board for an orchestrator session in a pane",
+  "types": "./types/index.d.ts"
+}

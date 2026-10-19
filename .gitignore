@@ -22,6 +22,11 @@ skills/**
 !local-plugins/
 !local-plugins/**
 
+!dev-mods/
+!dev-mods/**
+dev-mods/**/.claude-plugin/types/
+dev-mods/**/node_modules/
+
 !plugins/
 plugins/**
 !plugins/blocklist.json
