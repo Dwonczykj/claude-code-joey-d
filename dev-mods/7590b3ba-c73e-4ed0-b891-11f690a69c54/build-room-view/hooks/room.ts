@@ -13,7 +13,11 @@ const QUEUED = column('queued', 'Queued', ['NOT STARTED'])
 const BUILDING = column('building', 'Building', ['BUILDING', 'LOCAL', 'PROBE', 'FACTORY'])
 const CI = column('ci', 'CI and bots', ['PUSHED', 'DRAFT PR', 'PR'])
 const CALL = column('call', 'Your call', ['WAITING ON JOEY', 'COMPLEXITY REVIEW', 'DONE'])
-const MERGED = column('merged', 'Merged', ['MERGED'])
+const MERGED = column('merged', 'Merged or done', ['MERGED'])
+
+// topic-room tasks (sf's room CLI): no gates or PR, and a DONE one is finished rather than waiting on a merge
+const TASKS = new Set(['explore', 'investigate', 'plan', 'design', 'prototype', 'size', 'evaluate', 'measure'])
+export const isTask = (t: Ticket): boolean => TASKS.has(t.kind ?? '')
 
 export const COLUMNS: Column[] = [SHAPING, QUEUED, BUILDING, CI, CALL, MERGED]
 // stacked layout: what needs a person comes first
@@ -22,6 +26,7 @@ export const SHOW_MERGED = 3
 export const STACK_BELOW = 108
 
 export const columnOf = (t: Ticket): Column =>
+  (isTask(t) && t.state === 'DONE' ? MERGED : undefined) ??
   COLUMNS.find(c => t.queue && [c.id, c.name.toLowerCase()].includes(String(t.queue).toLowerCase())) ??
   COLUMNS.find(c => c.states.includes(t.state)) ??
   QUEUED
@@ -49,11 +54,13 @@ export const ticketMeta = (t: Ticket): string => {
   const g = gateCount(t)
 
   return [
+    t.kind && t.kind !== 'slice' ? t.kind : '',
     t.state,
     t.pr ? `#${t.pr}` : '',
     t.session ?? '',
     [t.model, t.effort].filter(Boolean).join(' '),
-    `gates ${g.done}/${g.total}`,
+    isTask(t) ? '' : `gates ${g.done}/${g.total}`,
+    t.source ? 'read-only' : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -68,6 +75,17 @@ export const visible = (col: Column, items: Ticket[]): { shown: Ticket[]; hidden
 const isTicket = (v: unknown): v is Ticket =>
   typeof v === 'object' && v !== null && typeof (v as Ticket).id === 'string' && typeof (v as Ticket).state === 'string'
 
+// Features in first-seen order and tickets with none last, as the room CLI's board draws them. A room with
+// no features is one group with feature null.
+export const featureGroups = (tickets: Ticket[]): { feature: string | null; tickets: Ticket[] }[] => {
+  const names = [...new Set(tickets.map(t => t.feature ?? null))]
+
+  return [...names.filter((n): n is string => n !== null), ...(names.includes(null) ? [null] : [])].map(feature => ({
+    feature,
+    tickets: tickets.filter(t => (t.feature ?? null) === feature),
+  }))
+}
+
 export const parseTickets = (text: string): { slug: string; orchestrator: string; tickets: Ticket[] } => {
   const j = JSON.parse(text) as Record<string, unknown>
   const list = Array.isArray(j.tickets) ? j.tickets : []
@@ -79,7 +97,7 @@ export const parseTickets = (text: string): { slug: string; orchestrator: string
   }
 }
 
-type Ev = { id: number; ticket: string; type: string; note: string; ask?: unknown }
+type Ev = { id: number; ticket: string; type: string; note: string; ask?: unknown; from?: unknown }
 
 export const parseEvents = (text: string): Ev[] =>
   text.split('\n').flatMap(line => {
@@ -88,7 +106,7 @@ export const parseEvents = (text: string): Ev[] =>
       const j = JSON.parse(line) as Partial<Ev>
 
       return typeof j.id === 'number' && typeof j.type === 'string'
-        ? [{ id: j.id, ticket: String(j.ticket ?? ''), type: j.type, note: String(j.note ?? ''), ask: j.ask }]
+        ? [{ id: j.id, ticket: String(j.ticket ?? ''), type: j.type, note: String(j.note ?? ''), ask: j.ask, from: j.from }]
         : []
     } catch {
       return []
@@ -114,7 +132,15 @@ const toAsk = (v: unknown): Question['ask'] | undefined => {
     question: a.question,
     options,
     multiSelect: a.multiSelect === true,
+    body: Array.isArray(a.body) ? a.body.filter((l): l is string => typeof l === 'string') : [],
   }
+}
+
+// the session behind a card (room ask --from-name), by name
+const fromName = (v: unknown): string | undefined => {
+  const name = typeof v === 'object' && v !== null ? (v as Record<string, unknown>).name : undefined
+
+  return typeof name === 'string' && name ? name : undefined
 }
 
 // a question is answered by an `answer` event whose note starts "re <its id>:"
@@ -128,7 +154,9 @@ export const openQuestions = (events: Ev[]): Question[] => {
   return events.flatMap(e => {
     const ask = e.type === 'question' ? toAsk(e.ask) : undefined
 
-    return ask && !answered.has(e.id) ? [{ id: e.id, ticket: e.ticket, ask }] : []
+    const from = fromName(e.from)
+
+    return ask && !answered.has(e.id) ? [{ id: e.id, ticket: e.ticket, ask, ...(from ? { from } : {}) }] : []
   })
 }
 

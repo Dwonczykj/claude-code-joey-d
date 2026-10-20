@@ -7,6 +7,7 @@ import {
   STACKED,
   activeAgents,
   columnOf,
+  featureGroups,
   isNarrow,
   isWaiting,
   namedRun,
@@ -177,44 +178,62 @@ export const register: Register = on => {
     )
     const hiddenNote = (hidden: number) => hidden > 0 && <Text dimColor>+{hidden} older merged</Text>
 
-    const board = isNarrow(columns) ? (
-      <Box flexDirection="column">
-        {STACKED.filter(c => run.tickets.some(t => columnOf(t) === c)).map(c => {
-          const { shown, hidden } = visible(c, run.tickets.filter(t => columnOf(t) === c))
+    const boardOf = (tickets: typeof run.tickets) =>
+      isNarrow(columns) ? (
+        <Box flexDirection="column">
+          {STACKED.filter(c => tickets.some(t => columnOf(t) === c)).map(c => {
+            const { shown, hidden } = visible(c, tickets.filter(t => columnOf(t) === c))
 
-          return (
+            return (
+              <Box flexDirection="column" marginTop={1}>
+                <Text bold wrap="truncate-end">
+                  {c.name} {tickets.filter(t => columnOf(t) === c).length}
+                </Text>
+                {shown.map(t => block(t, false))}
+                {hiddenNote(hidden)}
+              </Box>
+            )
+          })}
+          <Text dimColor wrap="truncate-end">
+            Empty: {COLUMNS.filter(c => !tickets.some(t => columnOf(t) === c)).map(c => c.name).join(', ') || 'none'}
+          </Text>
+        </Box>
+      ) : (
+        <Box flexDirection="row">
+          {COLUMNS.map(c => {
+            const items = tickets.filter(t => columnOf(t) === c)
+            const { shown, hidden } = visible(c, items)
+
+            return (
+              <Box flexDirection="column" width={`${Math.floor(100 / COLUMNS.length)}%`} paddingRight={1}>
+                <Text bold wrap="truncate-end">
+                  {c.name} {items.length}
+                </Text>
+                {items.length === 0 && <Text dimColor>-</Text>}
+                {shown.map(t => block(t, true))}
+                {hiddenNote(hidden)}
+              </Box>
+            )
+          })}
+        </Box>
+      )
+    // a topic room with features gets one board per feature; a room with its contract at the root keeps one
+    const groups = featureGroups(run.tickets)
+    const board =
+      groups.length <= 1 && !groups[0]?.feature ? (
+        boardOf(run.tickets)
+      ) : (
+        <Box flexDirection="column">
+          {groups.map(g => (
             <Box flexDirection="column" marginTop={1}>
-              <Text bold wrap="truncate-end">
-                {c.name} {run.tickets.filter(t => columnOf(t) === c).length}
+              <Text bold underline wrap="truncate-end">
+                {g.feature ? `Feature ${g.feature}` : 'No feature: tasks and light builds'} · {g.tickets.length}
               </Text>
-              {shown.map(t => block(t, false))}
-              {hiddenNote(hidden)}
+              {boardOf(g.tickets)}
             </Box>
-          )
-        })}
-        <Text dimColor wrap="truncate-end">
-          Empty: {COLUMNS.filter(c => !run.tickets.some(t => columnOf(t) === c)).map(c => c.name).join(', ') || 'none'}
-        </Text>
-      </Box>
-    ) : (
-      <Box flexDirection="row">
-        {COLUMNS.map(c => {
-          const items = run.tickets.filter(t => columnOf(t) === c)
-          const { shown, hidden } = visible(c, items)
-
-          return (
-            <Box flexDirection="column" width={`${Math.floor(100 / COLUMNS.length)}%`} paddingRight={1}>
-              <Text bold wrap="truncate-end">
-                {c.name} {items.length}
-              </Text>
-              {items.length === 0 && <Text dimColor>-</Text>}
-              {shown.map(t => block(t, true))}
-              {hiddenNote(hidden)}
-            </Box>
-          )
-        })}
-      </Box>
-    )
+          ))}
+        </Box>
+      )
 
     return (
       <Box flexDirection="column">
@@ -236,6 +255,12 @@ export const register: Register = on => {
                 {q.ask.header || 'Question'} · {q.ticket}
               </Text>
               <Text>{q.ask.question}</Text>
+              {q.ask.body.map(line => (
+                <Text dimColor wrap="truncate-end">
+                  {`  ${line}`}
+                </Text>
+              ))}
+              {q.from && <Text dimColor>{`  from ${q.from}`}</Text>}
               {q.ask.options.map((o, i) => (
                 <Text wrap="truncate-end">
                   {`  ${i + 1}. ${o.label}${o.description ? ` · ${o.description}` : ''}`}

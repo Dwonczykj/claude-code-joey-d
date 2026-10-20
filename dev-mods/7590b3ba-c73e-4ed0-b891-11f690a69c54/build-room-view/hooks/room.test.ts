@@ -4,6 +4,7 @@ import type { Ticket } from '../types'
 import {
   activeAgents,
   columnOf,
+  featureGroups,
   gateCount,
   isNarrow,
   namedRun,
@@ -25,6 +26,24 @@ test('a ticket lands in the column of its queue, else of its state, else Queued'
   expect(columnOf(t({ state: 'WAITING ON JOEY' })).id).toBe('call')
   expect(columnOf(t({ state: 'FACTORY' })).id).toBe('building')
   expect(columnOf(t({ state: 'SOMETHING NEW' })).id).toBe('queued')
+  // a finished topic-room task is done, not waiting on your call
+  expect(columnOf(t({ kind: 'explore', state: 'DONE' })).id).toBe('merged')
+  expect(columnOf(t({ kind: 'slice', state: 'DONE' })).id).toBe('call')
+})
+
+test('a topic room groups by feature, tickets with none last; a room with none is one group', () => {
+  const list = [t({ id: 'x1', kind: 'explore' }), t({ id: 'b1', feature: 'search' }), t({ id: 'w1', feature: 'export' }), t({ id: 'b2', feature: 'search' })]
+  expect(featureGroups(list).map(g => [g.feature, g.tickets.map(x => x.id)])).toEqual([
+    ['search', ['b1', 'b2']],
+    ['export', ['w1']],
+    [null, ['x1']],
+  ])
+  expect(featureGroups([t({ id: 'a' }), t({ id: 'b' })]).map(g => g.feature)).toEqual([null])
+})
+
+test('meta names a task kind instead of gates, and marks an adopted ticket read-only', () => {
+  expect(ticketMeta(t({ kind: 'design', session: 'g1' }))).toBe('design · BUILDING · g1')
+  expect(ticketMeta(t({ kind: 'light', source: '/runs/other' }))).toBe('light · BUILDING · gates 0/11 · read-only')
 })
 
 test('gates count done, passed and skipped values out of eleven', () => {
@@ -61,6 +80,16 @@ test('a question stays open until an answer event says "re <id>:"', () => {
   const open = openQuestions(parseEvents(log))
   expect(open.map(x => x.id)).toEqual([2])
   expect(open[0]?.ask.options).toEqual([{ label: 'Yes', description: 'go' }, { label: 'No', description: '' }])
+  expect(open[0]?.ask.body).toEqual([])
+  expect(open[0]?.from).toBeUndefined()
+})
+
+test('a card carries its body lines and the session behind it', () => {
+  const card = JSON.stringify({ id: 7, ticket: 'l1', type: 'question', note: 'q', from: { name: 'copy-chat', sessionId: 'local_x' },
+    ask: { header: 'Light build', question: 'Sign it?', options: [{ label: 'Sign it' }], multiSelect: false, body: ['1. Say X.', 2, '2. Say Y.'] } })
+  const [q7] = openQuestions(parseEvents(card))
+  expect(q7?.ask.body).toEqual(['1. Say X.', '2. Say Y.'])
+  expect(q7?.from).toBe('copy-chat')
 })
 
 const cand = (dir: string, orchestrator: string, mtimeMs: number) => ({ dir, slug: dir.split('/').at(-1) ?? '', orchestrator, mtimeMs })
@@ -77,7 +106,7 @@ test('a named run wins, then this session\'s orchestrator, then the newest', () 
 })
 
 test('a run is named by the last build-room path in a prompt', () => {
-  expect(namedRun('look at ~/FyxerGh/build-room/demo-write-out/ledger.md and /x/build-room/other')).toBe('other')
+  expect(namedRun('look at ~/FyxerGh/build-room/demo-export/ledger.md and /x/build-room/other')).toBe('other')
   expect(namedRun('nothing here')).toBeUndefined()
 })
 

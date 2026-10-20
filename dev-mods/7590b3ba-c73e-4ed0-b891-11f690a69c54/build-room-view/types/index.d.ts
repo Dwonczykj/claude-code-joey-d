@@ -8,6 +8,9 @@ export type Ticket = {
   model?: string
   effort?: string
   gates?: Record<string, unknown>
+  kind?: string
+  feature?: string
+  source?: string
 }
 
 export type Question = {
@@ -18,7 +21,9 @@ export type Question = {
     question: string
     options: { label: string; description: string }[]
     multiSelect: boolean
+    body: string[]
   }
+  from?: string
 }
 
 export type Run = {
