@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ff",
+  "description": "Fyxer factory pipeline as ff: commands.",
+  "owner": {
+    "name": "Joey Dwonczyk"
+  },
+  "plugins": [
+    {
+      "name": "ff",
+      "source": "./",
+      "description": "Fyxer factory: ff:start-feature, ff:investigate, ff:continue, ff:plan, ff:build, ff:review, ff:ci-green.",
+      "category": "workflow"
+    }
+  ]
+}

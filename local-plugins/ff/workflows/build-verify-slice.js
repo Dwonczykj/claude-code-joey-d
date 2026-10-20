@@ -1,0 +1,607 @@
+export const meta = {
+  name: 'ff-build-verify',
+  description: 'Deterministic Phase 3 machine: per-slice plan-review -> build+tests -> capped build/verify loop, cross-vendor (Codex+Gemini+Cursor), stops at RELEASE (never pushes).',
+  whenToUse: 'After the plan/split are signed off (ff:plan done). Runs one wave of independent slices to pre-PR RELEASE. Push + CI stay in the interactive session.',
+  phases: [
+    { title: 'Plan review' },
+    { title: 'Build' },
+    { title: 'Verify' },
+  ],
+}
+
+// ---------------------------------------------------------------------------
+// Invocation contract (args):
+//   {
+//     pluginRoot: "${CLAUDE_PLUGIN_ROOT}",  // the ff plugin's install dir; the
+//                                            // script has no filesystem access
+//                                            // so it can't resolve this itself,
+//                                            // the calling command must pass it
+//     slices: [
+//       { slug, worktree, pkg, base }   // one WAVE of independent slices only
+//     ],
+//     maxRounds?: 4,                     // build<->verify cap per slice
+//     widthAnswered?: false             // set true on re-invoke, AFTER the
+//   }                                    // interactive lead has answered the
+//                                        // width questions and written them
+//                                        // into requirements.md / the plan.
+//
+// Why the human gates are OUTSIDE this script: a Workflow runs headless and
+// cannot call AskUserQuestion. So the two hard human gates of Phase 3 live in
+// the interactive lead, not here:
+//   1. width questions (solve-in-worktrees Phase 2b, finding 7) -> this script
+//      returns them and HALTS the slice; the lead asks, writes answers into the
+//      plan, then re-invokes with widthAnswered:true.
+//   2. push + open PR (a RELEASE'd slice is returned; the lead pushes).
+//
+// ponytail: reviewer prompts are NOT duplicated here. Each vendor driver reads
+// the canonical skill text (solve-in-worktrees / pre-pr-gate) and runs exactly
+// that review, so the prompts can't drift from the skills. This script owns
+// ordering, the vote, and the loop -- nothing else.
+// ---------------------------------------------------------------------------
+
+if (!args || !args.pluginRoot) {
+  throw new Error('args.pluginRoot is required (pass ${CLAUDE_PLUGIN_ROOT} from the calling command) -- the script has no filesystem access to find its own bundled skills otherwise.')
+}
+
+const MAX_ROUNDS = (args && args.maxRounds) || 2
+const WIDTH_ANSWERED = !!(args && args.widthAnswered)
+const SLICES = (args && args.slices) || []
+// Per-role models. The build agent does the real work and defaults to Opus; the
+// plan-review and verify agents are thin drivers that only shell out to the real
+// vendors (Codex/Gemini/Cursor) and parse the result, so they default cheap — that's
+// ~12 agents a run that don't need Opus. Resolve each role from args.models.<role>,
+// falling back to a blanket args.model (ff:build-verify's --model), then the default.
+// The caller (ff:build-verify) fills args.models from ~/.claude/ff-models.json + flags.
+const DEFAULT_MODELS = {
+  planReview: 'claude-sonnet-5',
+  build: 'claude-opus-5-5',
+  tests: 'claude-sonnet-5',
+  verify: 'claude-sonnet-5',
+}
+const BLANKET_MODEL = args && args.model
+const pickModel = (role) =>
+  (args && args.models && args.models[role]) || BLANKET_MODEL || DEFAULT_MODELS[role]
+const MODELS = {
+  planReview: pickModel('planReview'),
+  build: pickModel('build'),
+  tests: pickModel('tests'),
+  verify: pickModel('verify'),
+}
+
+// Which vendor the *worker* sub-agents (build + T1/T2/T3) run on. Mirrors the interactive
+// path's ~/.claude/ff-model-provider switch, but the script has no fs access, so the
+// caller (ff:build-verify) reads that file and passes the value in. 'anthropic' spawns
+// Claude agent()s directly (spends Claude Code usage); 'codex'/'cursor' route the same
+// worker prompt through the vendor CLI to spare it. The review panel is unaffected.
+const PROVIDER = (args && args.provider) || 'anthropic'
+if (!['anthropic', 'codex', 'cursor'].includes(PROVIDER)) {
+  throw new Error(`provider must be anthropic|codex|cursor (got '${PROVIDER}')`)
+}
+
+const VENDORS = [
+  { id: 'codex', label: 'codex' },
+  { id: 'gemini', label: 'gemini' },
+  { id: 'cursor', label: 'cursor' },
+]
+
+const PLAN_REVIEW_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['verdict', 'planFindings', 'widthQuestions'],
+  properties: {
+    verdict: { type: 'string', enum: ['PLAN OK', 'PLAN CHANGES'] },
+    planFindings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['text', 'changesPlan', 'forUser'],
+        properties: {
+          text: { type: 'string' },
+          fileLine: { type: 'string' },
+          changesPlan: { type: 'boolean' }, // findings 1/3/5 rewrite the plan text
+          forUser: { type: 'boolean' }, // finding 5 (ambiguity) usually comes back to the user
+        },
+      },
+    },
+    widthQuestions: {
+      type: 'array', // solve-in-worktrees Phase 2b finding 7 -- empty is the normal answer
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['behaviour', 'fileLine', 'freezesWhat'],
+        properties: {
+          behaviour: { type: 'string' },
+          fileLine: { type: 'string' },
+          freezesWhat: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
+const VERIFY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['pass', 'verdict', 'findings'],
+  properties: {
+    pass: { type: 'string', enum: ['A', 'B', 'C'] },
+    verdict: { type: 'string', enum: ['RELEASE', 'CHANGES REQUIRED'] },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['severity', 'text', 'forTests'],
+        properties: {
+          severity: { type: 'string', enum: ['P0', 'P1', 'P2'] },
+          fileLine: { type: 'string' },
+          text: { type: 'string' },
+          forTests: { type: 'boolean' }, // Pass C test findings -> test agents, not the build agent
+        },
+      },
+    },
+  },
+}
+
+const BUILD_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'diffFiles'],
+  properties: {
+    summary: { type: 'string' },
+    diffFiles: { type: 'integer' }, // files in origin/<base>...HEAD after the build commit; 0 = nothing built
+  },
+}
+
+// Test agents stage files the repo's pre-commit typecheck hook won't let them commit alone,
+// so reviewers diff the working tree against the merge-base, not origin/<base>...HEAD.
+const reviewDiff = (slice) =>
+  `git -C ${slice.worktree} diff $(git -C ${slice.worktree} merge-base origin/${slice.base} HEAD)`
+
+const TEST_REQS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['entries'],
+  properties: {
+    entries: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['statement', 'kind'],
+        properties: {
+          statement: { type: 'string' }, // unit + breaking input + observable outcome
+          kind: { type: 'string', enum: ['NEW', 'UPDATE', 'COVERED'] },
+        },
+      },
+    },
+  },
+}
+
+// How a Claude driver agent invokes each external vendor. The driver is thin:
+// run the command, capture the vendor's verdict + findings, return the schema.
+// The reasoning is the vendor's; the driver only parses. Cross-vendor diversity
+// (different model families, not three Claude agents) is the point of the panel.
+//
+// Cost: the gemini and cursor seats bill Cursor (usage-based overage); codex is on the
+// flat ChatGPT/Codex sub. So the seats default to Cursor's cheaper tiers — the gemini seat
+// to Flash, the cursor seat to gpt-5.3-codex-high (coding-tuned, far below opus-5). Override
+// per run via args.reviewModels.{gemini,cursor}. NOTE: with the cursor seat on a GPT model,
+// codex + cursor are both GPT-family until the Claude seat moves to the Anthropic plan
+// (planned follow-up) — set reviewModels.cursor to claude-sonnet-5-high to keep Claude in.
+const DEFAULT_REVIEW_MODELS = { gemini: 'gemini-3.8-flash-high', cursor: 'gpt-5.3-codex-high' }
+const REVIEW_MODELS = { ...DEFAULT_REVIEW_MODELS, ...((args && args.reviewModels) || {}) }
+function vendorCommand(vendor, cwd) {
+  if (vendor === 'codex') {
+    return `Run in Bash (heredoc the prompt, do not interpolate): node ${args.pluginRoot}/skills/codex-agent/scripts/run-agent.mjs --sandbox read-only --cwd ${cwd} --timeout 900  <<'EOF'\n<REVIEW_PROMPT>\nEOF`
+  }
+  if (vendor === 'gemini') {
+    // ponytail: Gemini routed through cursor-agent (antigravity/agy is unreliable). Drop-in replacement, same wrapper shape.
+    return `Run in Bash (heredoc the prompt, do not interpolate): node ${args.pluginRoot}/skills/cursor-agent/scripts/run-agent.mjs --model ${REVIEW_MODELS.gemini} --cwd ${cwd} --timeout 900  <<'EOF'\n<REVIEW_PROMPT>\nEOF`
+  }
+  // cursor
+  return `Run in Bash (heredoc the prompt, do not interpolate): node ${args.pluginRoot}/skills/cursor-agent/scripts/run-agent.mjs --model ${REVIEW_MODELS.cursor} --cwd ${cwd} --timeout 900  <<'EOF'\n<REVIEW_PROMPT>\nEOF`
+}
+
+function driverPrompt({ vendor, cwd, reviewPrompt, schemaNote }) {
+  return [
+    `You are a thin driver for an external review model. Do NOT review anything yourself.`,
+    `Invoke the vendor exactly as follows, passing it the REVIEW_PROMPT verbatim:`,
+    ``,
+    vendorCommand(vendor, cwd),
+    ``,
+    `REVIEW_PROMPT:`,
+    reviewPrompt,
+    ``,
+    `Capture the vendor's full output. Parse its single verdict line and its numbered findings into the structured output. ${schemaNote}`,
+    `If the vendor errored or produced no verdict, return the most conservative verdict (a CHANGES/PLAN CHANGES with a single finding naming the failure) so the loop does not release on a missing signal.`,
+  ].join('\n')
+}
+
+// --- reconciliation (canonical in pre-pr-gate) ------------------------------
+// Quorum (>=2 of 3 vendors) only matters below P0: any P0 blocks on its own, and a
+// single-vendor P1/P2 goes to needsHumanCheck, not auto-acted, not dropped. Dedupe is
+// by normalised text -- coarse on purpose; over-merging only makes the gate stricter.
+function normalise(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .slice(0, 80)
+}
+
+function quorumFindings(perVendorFindings) {
+  const counts = new Map()
+  for (const list of perVendorFindings) {
+    const seenThisVendor = new Set()
+    for (const f of list || []) {
+      const key = normalise(f.text)
+      if (!key || seenThisVendor.has(key)) continue
+      seenThisVendor.add(key)
+      const prev = counts.get(key) || { count: 0, sample: f }
+      counts.set(key, { count: prev.count + 1, sample: prev.sample })
+    }
+  }
+  const quorum = []
+  const single = []
+  for (const { count, sample } of counts.values()) {
+    if (count >= 2) quorum.push(sample)
+    else single.push(sample)
+  }
+  return { quorum, single }
+}
+
+async function runVendorReview({ vendor, cwd, reviewPrompt, schema, phase, label, model }) {
+  const schemaNote =
+    schema === PLAN_REVIEW_SCHEMA
+      ? 'Return verdict (PLAN OK|PLAN CHANGES), planFindings, and widthQuestions.'
+      : 'Return pass, verdict (RELEASE|CHANGES REQUIRED), and findings with P0/P1/P2 severities.'
+  return agent(driverPrompt({ vendor, cwd, reviewPrompt, schemaNote }), {
+    schema,
+    phase,
+    label,
+    model, // MODELS.planReview / MODELS.verify — the driver only parses; the vendor does the thinking
+    effort: 'low',
+  })
+}
+
+// --- worker routing (build + test agents) -----------------------------------
+// PROVIDER === 'anthropic' spawns the Claude agent() directly (unchanged). For
+// 'codex'/'cursor' the SAME worker prompt is run through the vendor CLI (workspace-write,
+// so file edits land) by a thin Claude driver that only shells out and, when a schema is
+// expected, parses the CLI's final message into it — same shape as the review drivers, so
+// the heavy authoring runs on the vendor's subscription, not Claude Code usage. The driver
+// commits after the CLI returns, so the verify diff is there regardless of whether the
+// vendor CLI's own permissions allow git writes (cursor-agent's allowlist does not).
+function workerCliCommand(cwd) {
+  if (PROVIDER === 'codex') {
+    return `node ${args.pluginRoot}/skills/codex-agent/scripts/run-agent.mjs --sandbox workspace-write --cwd ${cwd} --timeout 1800`
+  }
+  return `node ${args.pluginRoot}/skills/cursor-agent/scripts/run-agent.mjs --model claude-opus-5-high --cwd ${cwd} --timeout 1800`
+}
+
+function workerDriverPrompt({ workerPrompt, cwd, writes, schemaNote }) {
+  return [
+    `You are a thin driver for an external coding agent (provider: ${PROVIDER}). Do NOT do the work yourself.`,
+    `Run this in Bash, heredoc the WORKER_PROMPT verbatim (do not interpolate it), and let it run to completion — it works inside ${cwd}:`,
+    ``,
+    `${workerCliCommand(cwd)}  <<'EOF'`,
+    `<WORKER_PROMPT>`,
+    `EOF`,
+    ``,
+    writes
+      ? `After it returns, commit its work yourself so the verify diff sees it (the CLI's own git permissions may not): git -C ${cwd} add -A && git -C ${cwd} commit -m "wip: worker round" || true`
+      : `It writes nothing (read-only analysis); do not commit.`,
+    ``,
+    `WORKER_PROMPT:`,
+    workerPrompt,
+    ``,
+    schemaNote
+      ? `Capture the agent's full final message and parse it into the structured output. ${schemaNote}`
+      : `Report a one-line confirmation of what changed. No schema.`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+// writes=true for agents that edit files (build/T2/T3/T1-diff); false for read-only T1.
+// model is the role's model (MODELS.build for the build agent, MODELS.tests for T1/T2/T3).
+function runWorker({ workerPrompt, cwd, writes, schema, phase, label, agentType, model, schemaNote }) {
+  if (PROVIDER === 'anthropic') {
+    return agent(workerPrompt, { schema, phase, label, model, agentType })
+  }
+  schemaNote =
+    schemaNote || (schema === TEST_REQS_SCHEMA ? 'Return the test-requirements entries (NEW/UPDATE/COVERED).' : '')
+  return agent(workerDriverPrompt({ workerPrompt, cwd, writes, schemaNote }), {
+    schema,
+    phase,
+    label,
+    model,
+    effort: 'low',
+  })
+}
+
+// --- Phase 2b: plan review --------------------------------------------------
+async function planReview(slice) {
+  const reviewPrompt = [
+    `Read the skill at ${args.pluginRoot}/skills/solve-in-worktrees/SKILL.md, section "Phase 2b".`,
+    `Perform EXACTLY that plan review (its 7 numbered checks) against the real codebase in ${slice.worktree}.`,
+    `The plan under review is the requirements + solution in .scratch/${slice.slug}/requirements.md and the slice's solution notes.`,
+    `Write no files. End with one verdict line PLAN OK or PLAN CHANGES.`,
+    `Report finding 7 (width questions) separately: each names the behaviour, its file:line, and what pinning it would stop anyone changing later. Empty is the normal answer.`,
+  ].join('\n')
+
+  const reviews = await parallel(
+    VENDORS.map((v) => () =>
+      runVendorReview({
+        vendor: v.id,
+        cwd: slice.worktree,
+        reviewPrompt,
+        schema: PLAN_REVIEW_SCHEMA,
+        phase: 'Plan review',
+        label: `plan:${slice.slug}:${v.label}`,
+        model: MODELS.planReview,
+      }),
+    ),
+  )
+  const ok = reviews.filter(Boolean)
+  const noReview = ok.length === 0
+
+  const widthQuestions = ok.flatMap((r) => r.widthQuestions || [])
+  const { quorum: planChanges } = quorumFindings(ok.map((r) => r.planFindings))
+  const forUser = planChanges.filter((f) => f.forUser)
+  // the script can't edit the plan, so a quorum-rejected plan goes back to the lead
+  const mustChange = planChanges.filter((f) => f.changesPlan && !f.forUser)
+  return { widthQuestions, planChanges, forUser, mustChange, noReview }
+}
+
+// --- Phase 3 / 3b: build + tests (one round) --------------------------------
+async function buildRound(slice, round, priorFindings) {
+  const findingsBlock = priorFindings.length
+    ? `\n\nPrior verify findings to fix this round (each is file:line + text):\n${priorFindings
+        .map((f, i) => `${i + 1}. [${f.severity}] ${f.fileLine || ''} ${f.text}`)
+        .join('\n')}`
+    : ''
+
+  // T1: test-requirement gathering from the PLAN (read-only). Feed 1.
+  const t1 = await runWorker({
+    workerPrompt: [
+      `Read ${args.pluginRoot}/skills/solve-in-worktrees/SKILL.md, "Phase 3b" (T1, feed 0 + feed 1).`,
+      `Worktree: ${slice.worktree}. Plan: .scratch/${slice.slug}/requirements.md.`,
+      `Output the test-requirements list (NEW/UPDATE/COVERED), each naming the unit, the input that breaks it, and the observable outcome. Read-only, write no files.`,
+    ].join('\n'),
+    cwd: slice.worktree,
+    writes: false,
+    schema: TEST_REQS_SCHEMA,
+    phase: 'Build',
+    label: `t1:${slice.slug}:r${round}`,
+    model: MODELS.tests,
+  })
+  const testReqs = (t1 && t1.entries) || []
+  const newReqs = testReqs.filter((e) => e.kind === 'NEW')
+  const updateReqs = testReqs.filter((e) => e.kind === 'UPDATE')
+  const testFindings = priorFindings.filter((f) => f.forTests)
+  const buildFindings = priorFindings.filter((f) => !f.forTests)
+
+  // Build agent (source only) + T2 (new tests) + T3 (existing tests), concurrent.
+  // File ownership keeps the concurrency safe: build->source, T2->new test
+  // files, T3->existing test files. Nobody writes another's files.
+  const diffFilesNote = `After committing, set diffFiles to the line count of: git -C ${slice.worktree} diff --name-only origin/${slice.base}...HEAD`
+  const [built] = await parallel([
+    () =>
+      runWorker({
+        workerPrompt: [
+          `You are the BUILD agent for slice "${slice.slug}". Absolute worktree: ${slice.worktree}.`,
+          `EVERY edit and git command targets that path (git -C ${slice.worktree} ...) and nothing outside it.`,
+          `Read the plan at .scratch/${slice.slug}/requirements.md and build to the planned interface. Follow ${args.pluginRoot}/skills/solve-in-worktrees/SKILL.md "Phase 3" (repo standards, comments-stricter-than-default, checks to run, DO NOT touch test files, DO NOT push, commit locally).`,
+          `Never run tsc --noEmit anywhere in this repo; verify types by reading the diff.`,
+          `A planned test that disagrees with your code: the plan wins -- fix the code, unless the plan detail itself is wrong, then stop and flag it.`,
+          findingsBlock && buildFindings.length ? findingsBlock : '',
+          `Commit your source changes in ONE local commit before you finish. ${diffFilesNote}`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        cwd: slice.worktree,
+        writes: true,
+        phase: 'Build',
+        label: `build:${slice.slug}:r${round}`,
+        schema: BUILD_SCHEMA,
+        schemaNote: `Return summary and diffFiles. ${diffFilesNote}`,
+        agentType: 'general-purpose',
+        model: MODELS.build,
+      }),
+    () =>
+      runWorker({
+        workerPrompt: [
+          `You are test-agent T2 (test create) for slice "${slice.slug}". Worktree: ${slice.worktree}.`,
+          `Follow ${args.pluginRoot}/skills/solve-in-worktrees/SKILL.md "Phase 3b" (T2). Write ONLY new test files, for the NEW entries below, against the interface the PLAN promised. Mirror the nearest existing test file. Never stub the planned module into existence or soften an assertion to make red go away. Commit locally, no push.`,
+          `NEW test-requirements:\n${newReqs.map((e, i) => `${i + 1}. ${e.statement}`).join('\n') || '(none)'}`,
+        ].join('\n'),
+        cwd: slice.worktree,
+        writes: true,
+        phase: 'Build',
+        label: `t2:${slice.slug}:r${round}`,
+        agentType: 'general-purpose',
+        model: MODELS.tests,
+      }),
+    () =>
+      runWorker({
+        workerPrompt: [
+          `You are test-agent T3 (test update) for slice "${slice.slug}". Worktree: ${slice.worktree}.`,
+          `Follow ${args.pluginRoot}/skills/solve-in-worktrees/SKILL.md "Phase 3b" (T3). Touch ONLY existing test files, for the UPDATE entries below. A test that now fails is a real regression (report it) unless the contract deliberately changed. Never delete a failing test to go green. Commit locally, no push.`,
+          `UPDATE test-requirements:\n${updateReqs.map((e, i) => `${i + 1}. ${e.statement}`).join('\n') || '(none)'}`,
+          testFindings.length
+            ? `Pass C test findings to address:\n${testFindings.map((f, i) => `${i + 1}. ${f.fileLine || ''} ${f.text}`).join('\n')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        cwd: slice.worktree,
+        writes: true,
+        phase: 'Build',
+        label: `t3:${slice.slug}:r${round}`,
+        agentType: 'general-purpose',
+        model: MODELS.tests,
+      }),
+  ])
+
+  // T1 feed 2: re-run over the first diff for behaviour the plan never named.
+  // ponytail: coverage feed only -- it appends, it does not gate. The plan feed
+  // above is the oracle; this catches branches/error-paths the plan missed.
+  await runWorker({
+    workerPrompt: [
+      `Test-agent T1, feed 2 (diff coverage) for slice "${slice.slug}". Worktree: ${slice.worktree}.`,
+      `Re-run T1 over ${reviewDiff(slice)} for behaviour the plan never named (a branch, an invented error path, a caller it had to touch). If any is worth a test, write/append it (new file only) and commit locally. Otherwise report none.`,
+    ].join('\n'),
+    cwd: slice.worktree,
+    writes: true,
+    phase: 'Build',
+    label: `t1diff:${slice.slug}:r${round}`,
+    model: MODELS.tests,
+  })
+  return built
+}
+
+// --- Phase 4: verify -------------------------------------------------------
+// Round 1 runs the full panel (3 passes x every vendor = 9 calls). Re-verify rounds
+// (round > 1) run Codex ONLY — it's on the flat sub, so re-checking a fix costs nothing
+// on Cursor — and the prompt targets the prior P0s ("confirm each is resolved"), so one
+// trusted reviewer confirming the specific fixes replaces the 9-call panel. That's most of
+// the Cursor spend, since the loop rounds are where it multiplies.
+async function verifyRound(slice, round, priorFindings = []) {
+  const vendors = round === 1 ? VENDORS : VENDORS.filter((v) => v.id === 'codex')
+  const solo = vendors.length === 1
+  const targeted = solo
+    ? `\nThis is a re-check: confirm each of these prior P0s is now resolved in the diff, and flag any regression. Prior P0s:\n${priorFindings
+        .map((f, i) => `${i + 1}. ${f.fileLine || ''} ${f.text}`)
+        .join('\n') || '(none — do a light full pass)'}`
+    : ''
+  const passes = [
+    {
+      pass: 'A',
+      ref: `${args.pluginRoot}/skills/solve-in-worktrees/SKILL.md "Phase 4 -- Pass A" (solution-vs-requirements over the diff below, against .scratch/${slice.slug}/requirements.md only). Per requirement: met / not met / met-but-broken with file:line, plus correctness/edge-case/dead-code defects. Not design/DRY/concurrency/tests.`,
+    },
+    {
+      pass: 'B',
+      ref: `${args.pluginRoot}/skills/pre-pr-gate/SKILL.md "Pass B" (code-quality: reuse/DRY, concurrency, mechanical design; ignore business correctness). Rank P0/P1/P2; only P0 gates RELEASE.`,
+    },
+    {
+      pass: 'C',
+      ref: `${args.pluginRoot}/skills/pre-pr-gate/SKILL.md "Pass C" (test-critique: every mock vs what the real function returns, cardinality absent/more-than-one/stale/mis-attributed, justify every first()/[0]/.find() over an external collection). Rank P0/P1/P2; only P0 gates RELEASE. Mark test-directed findings forTests:true.`,
+    },
+  ]
+
+  const results = await parallel(
+    passes.flatMap((p) =>
+      vendors.map((v) => () =>
+        runVendorReview({
+          vendor: v.id,
+          cwd: slice.worktree,
+          reviewPrompt: [
+            `Read and perform EXACTLY this review, write no files, end with one verdict line RELEASE or CHANGES REQUIRED and a numbered findings list:`,
+            p.ref,
+            `The diff under review is: ${reviewDiff(slice)} (includes staged, uncommitted test files). Use it instead of origin/${slice.base}...HEAD.`,
+            targeted,
+            `Reconciliation is not your job -- just report your own verdict and findings.`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          schema: VERIFY_SCHEMA,
+          phase: 'Verify',
+          label: `verify:${p.pass}:${slice.slug}:${v.label}:r${round}`,
+          model: MODELS.verify,
+        }),
+      ),
+    ),
+  )
+  const ok = results.filter(Boolean)
+
+  // Any P0 blocks, even from one vendor: vendors word the same P0 differently, so a
+  // quorum on P0 text let "requirement not met" slip through. Only sub-P0 single-vendor
+  // findings go to needsHumanCheck. A seat that returned nothing also blocks.
+  const byPass = { A: [], B: [], C: [] }
+  for (const r of ok) byPass[r.pass].push(r.findings || [])
+  let blocking = []
+  const needsHumanCheck = []
+  if (ok.length < results.length) {
+    blocking.push({ severity: 'P0', text: `${results.length - ok.length} review seat(s) returned nothing`, forTests: false })
+  }
+  for (const pass of ['A', 'B', 'C']) {
+    const { quorum, single } = quorumFindings(byPass[pass])
+    blocking = blocking.concat([...quorum, ...single].filter((f) => f.severity === 'P0'))
+    // On a codex-only re-check, lower severities are noise, not surfaced.
+    if (!solo) for (const f of single) if (f.severity !== 'P0') needsHumanCheck.push({ ...f, pass })
+  }
+  const released = blocking.length === 0
+  return { released, blocking, needsHumanCheck }
+}
+
+// --- per-slice loop ---------------------------------------------------------
+async function runSlice(slice) {
+  const review = await planReview(slice)
+
+  if (review.widthQuestions.length && !WIDTH_ANSWERED) {
+    log(`slice ${slice.slug}: ${review.widthQuestions.length} width question(s) -- halting for the lead to answer`)
+    return {
+      slug: slice.slug,
+      released: false,
+      halted: 'width-questions',
+      widthQuestions: review.widthQuestions,
+      planChangesForUser: review.forUser,
+    }
+  }
+  if (review.noReview) {
+    log(`slice ${slice.slug}: no plan-review seat returned -- halting`)
+    return { slug: slice.slug, released: false, halted: 'plan-review-failed' }
+  }
+  if (review.mustChange.length) {
+    log(`slice ${slice.slug}: ${review.mustChange.length} plan change(s) the reviewers agreed on -- halting for the lead to apply`)
+    return { slug: slice.slug, released: false, halted: 'plan-changes', planChanges: review.mustChange }
+  }
+  if (review.forUser.length) {
+    log(`slice ${slice.slug}: ${review.forUser.length} ambiguity finding(s) for the lead -- halting`)
+    return {
+      slug: slice.slug,
+      released: false,
+      halted: 'plan-ambiguity',
+      planChangesForUser: review.forUser,
+    }
+  }
+
+  let priorFindings = []
+  let lastNeedsHuman = []
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    if (budget.total && budget.remaining() < 60000) {
+      log(`slice ${slice.slug}: stopping at round ${round}, token budget nearly spent`)
+      return { slug: slice.slug, released: false, halted: 'budget', roundsUsed: round - 1, needsHumanCheck: lastNeedsHuman }
+    }
+    const built = await buildRound(slice, round, priorFindings)
+    if (!built || !(built.diffFiles > 0)) {
+      log(`slice ${slice.slug}: round ${round} build ${built ? 'produced an empty diff' : 'failed'} -- halting`)
+      return { slug: slice.slug, released: false, halted: built ? 'empty-diff' : 'build-failed', roundsUsed: round, needsHumanCheck: lastNeedsHuman }
+    }
+    const verify = await verifyRound(slice, round, priorFindings)
+    lastNeedsHuman = verify.needsHumanCheck
+    if (verify.released) {
+      log(`slice ${slice.slug}: RELEASE after ${round} round(s)`)
+      return { slug: slice.slug, released: true, roundsUsed: round, needsHumanCheck: verify.needsHumanCheck }
+    }
+    priorFindings = verify.blocking
+    log(`slice ${slice.slug}: round ${round} -> ${verify.blocking.length} blocking P0(s), looping`)
+  }
+  return { slug: slice.slug, released: false, halted: 'max-rounds', roundsUsed: MAX_ROUNDS, contested: priorFindings, needsHumanCheck: lastNeedsHuman }
+}
+
+// --- entry ------------------------------------------------------------------
+if (!SLICES.length) {
+  log('no slices in args.slices -- nothing to do')
+  return { slices: [] }
+}
+log(
+  `ff build/verify: ${SLICES.length} slice(s), maxRounds=${MAX_ROUNDS}, widthAnswered=${WIDTH_ANSWERED}, provider=${PROVIDER}, ` +
+    `models={plan:${MODELS.planReview}, build:${MODELS.build}, tests:${MODELS.tests}, verify:${MODELS.verify}}, ` +
+    `reviewSeats={gemini:${REVIEW_MODELS.gemini}, cursor:${REVIEW_MODELS.cursor}} (round>1 = codex-only re-check)`,
+)
+const results = await parallel(SLICES.map((s) => () => runSlice(s)))
+return { slices: results.filter(Boolean) }
