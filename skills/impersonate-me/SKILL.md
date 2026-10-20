@@ -67,9 +67,9 @@ If the draft is Joey posting something an agent found or did (a review finding, 
 - Anything Joey would say regardless of who did the work (a decision, an approval, a fact he's now asserting as his own) stays in his voice, unprefixed, exactly as the rest of this profile describes.
 - Only the actual agent-derived content gets scoped attribution — a short intro clause naming it as the agent's ("My agent says there's an issue with X though:") placed right before that content, not stacked at the top of the whole message.
 - Blockquote (`>`) the attributed block so it's visually distinct from Joey's own lines.
-- Close with a plain transparency tag on its own line: "Sent using @Claude" (or the tool in use). This is Joey's own disclosure convention, not a hedge — keep it terse, no explanation of what the agent did or why.
+- Transparency tag is opt-in. Slack already adds its own "Sent using @Claude" footer, so don't add a body tag by default. Add one only when Joey asks ("add the tag", "sign it as X"): put it on its own line at the end. If he gives wording (for example "Sent with Joey's Claude"), use it verbatim; if he just says "add the tag", use "Sent using @Claude". Keep it terse, no explanation of what the agent did or why.
 
-Example shape:
+Example shape (the last line only when the tag was asked for):
 ```
 <Joey's own line, his voice, no attribution>
 

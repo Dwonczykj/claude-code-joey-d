@@ -21,12 +21,14 @@ Source of truth (Notion, shared with reviewers for 360/performance review): `htt
    **Lesson:** <one sentence, non-obvious>
    ```
    Bar for this log (this is a reviewer-facing document): a hard number tied to a business metric (conversion, retention, cost, error rate) is the gold standard, but a foundational/strategic build that clearly enables other wins can qualify without one (see existing entries like "Human Data Platform" or "Chat memory foundation"). If it's shipped but genuinely unmeasured with no strategic story, it belongs in the **no-impact log** instead (see `update-no-impact-log`) — don't inflate it to fit here.
-3. **Show the drafted entry to Joey and get explicit confirmation before writing** — this page is shared with reviewers (Rich Kirsch et al. use it for 360/performance review), so nothing goes in unreviewed.
+3. **Show the drafted entry to Joey and get explicit confirmation before writing** — this page is shared with reviewers (Rich Kirsch et al. use it for 360/performance review), so nothing goes in unreviewed. If Joey holds it back ("not yet", "put it in the notes"), park it with `impact-draft-note` instead of writing.
 4. On confirmation, use `notion-update-page` with `command: "update_content"` (search-and-replace, anchored on the current last line of the relevant `## <year>` section) or `command: "insert_content"` if appending to the very end of the page, to add the entry in chronological order under the correct `## <year>` heading. Don't reformat or renumber existing entries.
 5. Re-run `read-impact-log` to refresh the vault snapshot with the new content.
 
 ## Notes
 
 - Never write to Notion without Joey's explicit go-ahead on the drafted text — this isn't a private scratchpad.
+- Keep entries short (about 60 to 90 words; Joey's call, 2026-10-05): Delivered is one sentence on what was built and the problem it solved, no mechanism detail; Impact leads with the bold headline number, then a few words on where the evidence comes from, the link to a company goal, and one citation. No PR links (Linear IDs and Slack/Linear/GrowthBook citations are fine). Lesson is optional; include it only when it says something non-obvious. Write money figures so a senior reader can't misread them, e.g. "raised by customers worth up to $X ARR", never a bare "$X ARR".
+- Projected figures are allowed in the Impact line (Joey's call, 2026-10-05) but must be visibly labelled. Write "Projected: ..." (or "Projected X over 90 days, base case; range A to B") and keep it in a separate sentence from any measured figure ("Measured: ..."). Name the method and the key assumption in a clause, and end with "Actual to be checked on <date>". Never blend projected and measured numbers in one sentence. Source projections from `docs-private/<slug>-projection.md` (written by the projection forks); if no projection report exists for the item, don't invent one.
 - Keep the voice consistent with existing entries: terse, outcome-first, one number per entry, no em-dashes.
 - Bump nothing else on the page (no properties to update; it's a plain page, title-only).
