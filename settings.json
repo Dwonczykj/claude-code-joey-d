@@ -30,7 +30,10 @@
       "Bash(pbpaste)",
       "Bash(pbpaste *)",
       "Glob",
-      "Grep"
+      "Grep",
+      "mcp__ccd_directory__change_directory",
+      "mcp__ccd_directory__request_directory",
+      "mcp__ccd_session_mgmt__set_session_title"
     ],
     "defaultMode": "auto"
   },
@@ -44,6 +47,16 @@
             "type": "command",
             "command": "~/.claude/hooks/block-git-push.sh",
             "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Read|Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/joey/FyxerGh/fyxer-web-app-trees/.claude/hooks/blockLocalProviderKeys.py",
+            "timeout": 10
           }
         ]
       }
@@ -67,7 +80,10 @@
     "ponytail@ponytail": true,
     "sf@sf": true,
     "portal@portal": false,
-    "shunt@portal": false
+    "shunt@portal": false,
+    "podium-reporter@eengelking-marketplace": false,
+    "tool-skins@joey-mods": true,
+    "savvy-progress@joey-savvy": true
   },
   "extraKnownMarketplaces": {
     "ponytail": {
@@ -81,9 +97,59 @@
         "source": "github",
         "repo": "spotify/portal-ai-plugins"
       }
+    },
+    "ff": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/joey/.claude/local-plugins/ff"
+      }
+    },
+    "eengelking-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "eengelking/skills"
+      }
+    },
+    "joey-mods": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/joey/.claude/dev-mods/13f35a49-2b88-4681-8fbd-5fe9a6c38110/tool-skins"
+      }
+    },
+    "joey-savvy": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/joey/.claude/dev-mods/13f35a49-2b88-4681-8fbd-5fe9a6c38110/savvy-progress"
+      }
     }
   },
+  "outputStyle": "Concise",
   "effortLevel": "high",
+  "pluginConfigs": {
+    "ff@ff": {
+      "options": {
+        "branchPrefix": "joeydwonczyk",
+        "prAssignee": "dwonczykj",
+        "linearProject": "Product Engineering",
+        "worktreeRoot": "~/FyxerGh/fyxer-web-app-trees"
+      }
+    },
+    "podium-reporter@eengelking-marketplace": {
+      "options": {
+        "serverUrl": "http://127.0.0.1:4317",
+        "showStatus": true,
+        "explainFailures": false,
+        "fullPrompts": false,
+        "activityFeed": false,
+        "respond": "off"
+      }
+    },
+    "tool-skins@joey-mods": {
+      "options": {
+        "theme": "nord"
+      }
+    }
+  },
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
@@ -93,6 +159,5 @@
   "skipAutoPermissionPrompt": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754131276564
-  },
-  "outputStyle": "Concise"
+  }
 }

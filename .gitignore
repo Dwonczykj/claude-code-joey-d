@@ -72,3 +72,7 @@ scheduled-tasks/**
 # Run artifacts never tracked, even for kept tasks (must stay after the ! lines):
 scheduled-tasks/**/last-successful-run.txt
 scheduled-tasks/**/*.txt
+
+# Local-only: describes where provider keys live
+skills/provider-keys/
+__pycache__/

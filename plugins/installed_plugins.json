@@ -23,10 +23,10 @@
     "sf@sf": [
       {
         "scope": "user",
-        "installPath": "/Users/joey/.claude/plugins/cache/sf/sf/0.7.5",
-        "version": "0.7.5",
+        "installPath": "/Users/joey/.claude/plugins/cache/sf/sf/0.7.30",
+        "version": "0.7.30",
         "installedAt": "2026-08-26T07:49:55.821Z",
-        "lastUpdated": "2026-09-28T13:06:49.978Z"
+        "lastUpdated": "2026-10-20T06:07:44.933Z"
       }
     ],
     "portal@portal": [
@@ -47,6 +47,463 @@
         "installedAt": "2026-09-08T06:38:28.691Z",
         "lastUpdated": "2026-09-08T06:38:28.691Z",
         "gitCommitSha": "3c24ca30ff63e1f5bbad1c43fe5324daff579123"
+      }
+    ],
+    "qodo@claude-plugins-official": [
+      {
+        "scope": "project",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app",
+        "installPath": "/Users/joey/.claude/plugins/cache/claude-plugins-official/qodo/2.1.2",
+        "version": "2.1.2",
+        "installedAt": "2026-10-05T20:39:15.197Z",
+        "lastUpdated": "2026-10-16T06:30:08.239Z",
+        "gitCommitSha": "b8c21854199c538b1c35c981c12a93bab4839ef2"
+      }
+    ],
+    "ff@ff": [
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-12T13:37:03.544Z",
+        "lastUpdated": "2026-10-12T13:37:03.544Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-meeting-actions",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-12T13:37:06.398Z",
+        "lastUpdated": "2026-10-12T13:37:06.398Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.scratch/luna-drafts-experiment",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-12T15:34:46.254Z",
+        "lastUpdated": "2026-10-12T15:34:46.254Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-descriptor-patch-put",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-12T16:38:11.654Z",
+        "lastUpdated": "2026-10-12T16:38:11.654Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-triggers",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-12T16:58:45.150Z",
+        "lastUpdated": "2026-10-12T16:58:45.150Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-notion-investigate",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-12T17:02:30.496Z",
+        "lastUpdated": "2026-10-12T17:02:30.496Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-icon-egress",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T09:58:48.040Z",
+        "lastUpdated": "2026-10-13T09:58:48.040Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-mcp-lookup",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T12:03:09.171Z",
+        "lastUpdated": "2026-10-13T12:03:09.171Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-mcp-capabilities",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T12:12:43.217Z",
+        "lastUpdated": "2026-10-13T12:12:43.217Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/elevenlabs-path2-cleanup",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T12:19:38.532Z",
+        "lastUpdated": "2026-10-13T12:19:38.532Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-notion-send-fail",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T15:07:33.662Z",
+        "lastUpdated": "2026-10-13T15:07:33.662Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-egress-patch-put",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T15:55:45.184Z",
+        "lastUpdated": "2026-10-13T15:55:45.184Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-egress-vault-apps",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-13T16:56:58.003Z",
+        "lastUpdated": "2026-10-13T16:56:58.003Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-prompt",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T00:21:43.967Z",
+        "lastUpdated": "2026-10-14T00:21:43.967Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-asana-register",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T12:55:57.816Z",
+        "lastUpdated": "2026-10-14T12:55:57.816Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-mcp-prompt-spike",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T14:20:24.601Z",
+        "lastUpdated": "2026-10-14T14:20:24.601Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-resend",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T16:57:58.231Z",
+        "lastUpdated": "2026-10-14T16:57:58.231Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-offer",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T16:58:16.811Z",
+        "lastUpdated": "2026-10-14T16:58:16.811Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-batch",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T19:38:34.525Z",
+        "lastUpdated": "2026-10-14T19:38:34.525Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-sent-markers",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-14T19:53:58.439Z",
+        "lastUpdated": "2026-10-14T19:53:58.439Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-mcp-prompt-rules",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T07:39:21.107Z",
+        "lastUpdated": "2026-10-15T07:39:21.107Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-mcp-prompt-send",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T11:41:42.168Z",
+        "lastUpdated": "2026-10-15T11:41:42.168Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-planner",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T13:10:44.289Z",
+        "lastUpdated": "2026-10-15T13:10:44.289Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-call-summary",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T13:10:48.119Z",
+        "lastUpdated": "2026-10-15T13:10:48.119Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-summary-signpost",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T14:57:24.433Z",
+        "lastUpdated": "2026-10-15T14:57:24.433Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/gallant-murdock-df701d",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T15:28:49.637Z",
+        "lastUpdated": "2026-10-15T15:28:49.637Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/feat-pre-3286-admin-override-6d65c1",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T15:55:03.249Z",
+        "lastUpdated": "2026-10-15T15:55:03.249Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-write-combined",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-15T16:38:23.838Z",
+        "lastUpdated": "2026-10-15T16:38:23.838Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/relaxed-curie-8ceac5",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-16T13:52:18.012Z",
+        "lastUpdated": "2026-10-16T13:52:18.012Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/text-label-custom-integrations-4589b7",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-16T15:42:17.885Z",
+        "lastUpdated": "2026-10-16T15:42:17.885Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/peaceful-clarke-af0f11",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-16T20:56:12.026Z",
+        "lastUpdated": "2026-10-16T20:56:12.026Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/custom-integration-trial-run-spec-a626c6",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T13:07:24.256Z",
+        "lastUpdated": "2026-10-17T13:07:24.256Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/pr-14553-review-9feeaa",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T13:07:58.339Z",
+        "lastUpdated": "2026-10-17T13:07:58.339Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/infallible-goodall-ec75fd",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T13:24:32.798Z",
+        "lastUpdated": "2026-10-17T13:24:32.798Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/prompt-rule-fixed-values-only-a00a1d",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T13:28:55.839Z",
+        "lastUpdated": "2026-10-17T13:28:55.839Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/custom-integration-write-rule-toggle-74883c",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T15:05:54.407Z",
+        "lastUpdated": "2026-10-17T15:05:54.407Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/vibrant-antonelli-54df71",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T15:06:22.887Z",
+        "lastUpdated": "2026-10-17T15:06:22.887Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/custom-integration-page-redesign-4e9bdc",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T15:23:33.863Z",
+        "lastUpdated": "2026-10-17T15:23:33.863Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/angry-moore-c324b9",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-17T17:07:58.143Z",
+        "lastUpdated": "2026-10-17T17:07:58.143Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/vigilant-brahmagupta-2f47ff",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-18T15:25:01.316Z",
+        "lastUpdated": "2026-10-18T15:25:01.316Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/custom-integration-sent-markers-bedd47",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-18T18:46:34.108Z",
+        "lastUpdated": "2026-10-18T18:46:34.108Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/infallible-solomon-b64c60",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-18T19:06:45.635Z",
+        "lastUpdated": "2026-10-18T19:06:45.635Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/write-rule-form-assistant-fc6850",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T11:25:34.919Z",
+        "lastUpdated": "2026-10-19T11:25:34.919Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/cf-full-surface-pr2",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T11:53:38.914Z",
+        "lastUpdated": "2026-10-19T11:53:38.914Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/youthful-bardeen-83bf0c",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T12:21:03.677Z",
+        "lastUpdated": "2026-10-19T12:21:03.677Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/custom-integrations-audit-794ae0",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T13:14:39.828Z",
+        "lastUpdated": "2026-10-19T13:14:39.828Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/reverent-williamson-b9a9be",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T14:08:13.567Z",
+        "lastUpdated": "2026-10-19T14:08:13.567Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/fix-catalog-latestversion-default-d6ed3d",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T14:46:49.909Z",
+        "lastUpdated": "2026-10-19T14:46:49.909Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/jovial-goldberg-194a07",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T16:55:01.115Z",
+        "lastUpdated": "2026-10-19T16:55:01.115Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/affectionate-bouman-cbbc9e",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T16:57:10.882Z",
+        "lastUpdated": "2026-10-19T16:57:10.882Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/wizardly-darwin-384ce4",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T16:58:55.919Z",
+        "lastUpdated": "2026-10-19T16:58:55.919Z"
+      },
+      {
+        "scope": "local",
+        "projectPath": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app/.claude/worktrees/list-preview-debug-a9f2bc",
+        "installPath": "/Users/joey/.claude/plugins/cache/ff/ff/0.7.13",
+        "version": "0.7.13",
+        "installedAt": "2026-10-19T21:08:16.319Z",
+        "lastUpdated": "2026-10-19T21:08:16.319Z"
+      }
+    ],
+    "podium-reporter@eengelking-marketplace": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/eengelking-marketplace/podium-reporter/1.1.0",
+        "version": "1.1.0",
+        "installedAt": "2026-10-17T15:30:40.261Z",
+        "lastUpdated": "2026-10-17T15:30:40.261Z",
+        "gitCommitSha": "20d718541e77a63839abe5195958bfa7e6b85bfb"
+      }
+    ],
+    "tool-skins@joey-mods": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/joey-mods/tool-skins/0.1.0",
+        "version": "0.1.0",
+        "installedAt": "2026-10-19T06:09:14.287Z",
+        "lastUpdated": "2026-10-19T06:09:14.287Z"
+      }
+    ],
+    "savvy-progress@joey-savvy": [
+      {
+        "scope": "user",
+        "installPath": "/Users/joey/.claude/plugins/cache/joey-savvy/savvy-progress/0.1.0",
+        "version": "0.1.0",
+        "installedAt": "2026-10-19T06:29:51.082Z",
+        "lastUpdated": "2026-10-19T06:29:51.082Z"
       }
     ]
   }

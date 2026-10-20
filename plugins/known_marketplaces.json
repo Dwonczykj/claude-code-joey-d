@@ -5,7 +5,7 @@
       "repo": "anthropics/claude-plugins-official"
     },
     "installLocation": "/Users/joey/.claude/plugins/marketplaces/claude-plugins-official",
-    "lastUpdated": "2026-09-22T06:18:53.471Z"
+    "lastUpdated": "2026-10-20T06:50:51.655Z"
   },
   "ponytail": {
     "source": {
@@ -21,7 +21,7 @@
       "path": "/Users/joey/.claude/local-plugins/sf"
     },
     "installLocation": "/Users/joey/.claude/local-plugins/sf",
-    "lastUpdated": "2026-08-26T00:00:00.000Z"
+    "lastUpdated": "2026-10-20T06:07:44.451Z"
   },
   "portal": {
     "source": {
@@ -30,5 +30,45 @@
     },
     "installLocation": "/Users/joey/.claude/plugins/marketplaces/portal",
     "lastUpdated": "2026-09-08T06:38:20.167Z"
+  },
+  "ff": {
+    "source": {
+      "source": "directory",
+      "path": "/Users/joey/.claude/local-plugins/ff"
+    },
+    "installLocation": "/Users/joey/.claude/local-plugins/ff",
+    "lastUpdated": "2026-10-12T13:36:35.410Z"
+  },
+  "fyxer-web-app": {
+    "source": {
+      "source": "directory",
+      "path": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app"
+    },
+    "installLocation": "/Users/joey/FyxerGh/fyxer-web-app-trees/fyxer-web-app",
+    "lastUpdated": "2026-10-19T08:09:37.104Z"
+  },
+  "eengelking-marketplace": {
+    "source": {
+      "source": "github",
+      "repo": "eengelking/skills"
+    },
+    "installLocation": "/Users/joey/.claude/plugins/marketplaces/eengelking-marketplace",
+    "lastUpdated": "2026-10-17T15:30:20.357Z"
+  },
+  "joey-mods": {
+    "source": {
+      "source": "directory",
+      "path": "/Users/joey/.claude/dev-mods/13f35a49-2b88-4681-8fbd-5fe9a6c38110/tool-skins"
+    },
+    "installLocation": "/Users/joey/.claude/dev-mods/13f35a49-2b88-4681-8fbd-5fe9a6c38110/tool-skins",
+    "lastUpdated": "2026-10-19T06:09:13.301Z"
+  },
+  "joey-savvy": {
+    "source": {
+      "source": "directory",
+      "path": "/Users/joey/.claude/dev-mods/13f35a49-2b88-4681-8fbd-5fe9a6c38110/savvy-progress"
+    },
+    "installLocation": "/Users/joey/.claude/dev-mods/13f35a49-2b88-4681-8fbd-5fe9a6c38110/savvy-progress",
+    "lastUpdated": "2026-10-19T06:29:50.394Z"
   }
 }
