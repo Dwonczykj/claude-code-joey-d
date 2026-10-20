@@ -6,15 +6,22 @@ import {
   COLUMNS,
   STACKED,
   activeAgents,
+  ago,
+  belongs,
+  installedRoomCli,
   columnOf,
   featureGroups,
   isNarrow,
   isWaiting,
+  lacksPrs,
   namedRun,
   openQuestions,
   parseEvents,
+  parsePrs,
   parseTickets,
   pickRun,
+  prChips,
+  shouldCheck,
   ticketMeta,
   visible,
 } from './room'
@@ -31,9 +38,12 @@ const view = atom({ plugin: 'build-room-view', key: 'view' } as const, WAITING)
 const sessionTitle = atom({ plugin: 'build-room-view', key: 'sessionTitle' } as const, '')
 const named = atom({ plugin: 'build-room-view', key: 'named' } as const, '')
 const agents = atom({ plugin: 'build-room-view', key: 'agents' } as const, [] as AgentLine[])
+// the last `room prs` run's failure, when it could not run at all (GitHub's own errors are in prs.json)
+const prsRun = atom({ plugin: 'build-room-view', key: 'prsRun' } as const, '')
 
 const HOW: Record<Run['how'], string> = {
   matched: "this session's run",
+  member: 'the run this session works a ticket of',
   named: 'the run you named',
   newest: 'the newest run, not matched to this session',
 }
@@ -41,6 +51,9 @@ const HOW: Record<Run['how'], string> = {
 export const register: Register = on => {
   let seen = ''
   let isPlaced = false
+  // `room prs` for this session's room: a Claude event marks it due, the 5 s tick runs it at most once a minute
+  let roomDir = ''
+  const prs = { dirty: true, running: false, lastMs: 0 }
 
   on('session.start', async ($, e, next) => {
     // Re-reads only when a file's mtime, the session's title or the named run moved. Never writes.
@@ -54,8 +67,9 @@ export const register: Register = on => {
           const dir = `${base}/${d.name}`
           const t = await $.fs.stat(`${dir}/tickets.json`).catch(() => undefined)
           const ev = await $.fs.stat(`${dir}/events.jsonl`).catch(() => undefined)
+          const p = await $.fs.stat(`${dir}/prs.json`).catch(() => undefined)
 
-          return { dir, tMs: t?.mtimeMs ?? 0, eMs: ev?.mtimeMs ?? 0 }
+          return { dir, tMs: t?.mtimeMs ?? 0, eMs: ev?.mtimeMs ?? 0, pMs: p?.mtimeMs ?? 0 }
         }),
       )
       const title = await read($, sessionTitle)
@@ -77,7 +91,13 @@ export const register: Register = on => {
               .map(async (s): Promise<Candidate | undefined> => {
                 const t = parseTickets(await $.fs.read(`${s.dir}/tickets.json`))
 
-                return { dir: s.dir, slug: t.slug, orchestrator: t.orchestrator, mtimeMs: Math.max(s.tMs, s.eMs) }
+                return {
+                  dir: s.dir,
+                  slug: t.slug,
+                  orchestrator: t.orchestrator,
+                  mtimeMs: Math.max(s.tMs, s.eMs),
+                  sessions: t.tickets.flatMap(x => (x.session ? [x.session] : [])),
+                }
               }),
           )
         ).filter((c): c is Candidate => c !== undefined)
@@ -96,6 +116,12 @@ export const register: Register = on => {
         const { dir } = pick.candidate
         const t = parseTickets(await $.fs.read(`${dir}/tickets.json`))
         const events = await $.fs.read(`${dir}/events.jsonl`).catch(() => '')
+        roomDir = belongs(pick.how) ? dir : ''
+        // a half-written or missing prs.json shows as no train, never as a stale board
+        const train = await $.fs
+          .read(`${dir}/prs.json`)
+          .then(parsePrs)
+          .catch(() => null)
         const run: Run = {
           dir,
           slug: t.slug || dir.split('/').at(-1) || dir,
@@ -104,6 +130,7 @@ export const register: Register = on => {
           open: openQuestions(parseEvents(events)),
           how: pick.how,
           stale: '',
+          train,
         }
         seen = key
         await update($, view, () => ({ run, message: '' }))
@@ -123,8 +150,45 @@ export const register: Register = on => {
       name: 'build-room-view',
       description: 'Show the Build Room inbox and board in a pane (optional: a run name)',
     })
+    const checkPrs = async () => {
+      const dir = roomDir
+      const nowMs = await $.clock.now()
+      if (!dir || !shouldCheck(prs, nowMs)) return
+      Object.assign(prs, { dirty: false, running: true, lastMs: nowMs })
+      try {
+        // the room's own copy of the CLI, which the orchestrator refreshes on every start; a fixed argv, no shell
+        let r = await $.process.run(['python3', `${dir}/room`, 'prs', '--dir', dir], { timeoutMs: 300_000 })
+        if (r.exitCode && lacksPrs(r.stderr)) {
+          // the room's copy predates `room prs`: run the installed plugin's copy until the orchestrator refreshes it
+          const home = await $.env.get('HOME')
+          const installed = home ? await $.fs.read(`${home}/.claude/plugins/installed_plugins.json`).catch(() => '') : ''
+          const cli = installedRoomCli(installed)
+          if (cli) r = await $.process.run(['python3', cli, 'prs', '--dir', dir], { timeoutMs: 300_000 })
+        }
+        const why = r.stderr.trim().split('\n').at(-1) || `exit ${r.exitCode}`
+        await update($, prsRun, () => (r.exitCode ? why : ''))
+      } catch (err) {
+        await update($, prsRun, () => (err instanceof Error ? err.message : String(err)))
+      } finally {
+        prs.running = false
+      }
+    }
+
     await refresh().catch(() => undefined)
-    $.clock.every(POLL_MS, () => void refresh().catch(() => undefined))
+    $.clock.every(POLL_MS, () => void refresh().then(checkPrs).catch(() => undefined))
+
+    return next(e)
+  })
+
+  // any Claude event in the session marks GitHub due for a check; the tick decides whether it runs
+  on('tool.call', async ($, e, next) => {
+    prs.dirty = true
+
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    prs.dirty = true
 
     return next(e)
   })
@@ -162,7 +226,9 @@ export const register: Register = on => {
       )
     }
 
-    const { open } = run
+    const { open, train } = run
+    const nowMs = await $.clock.now()
+    const prsFailed = await read($, prsRun)
     const working = activeAgents(await read($, agents))
     const block = (t: (typeof run.tickets)[number], isWide: boolean) => (
       <Box flexDirection="column">
@@ -270,6 +336,34 @@ export const register: Register = on => {
           ))}
           {open.length > SHOW_QUESTIONS && <Text dimColor>+{open.length - SHOW_QUESTIONS} more in the Build Room</Text>}
           {open.length > 0 && <Text dimColor>Answer in the Build Room page or the orchestrator session.</Text>}
+        </Box>
+
+        <Box flexDirection="column" marginTop={1}>
+          <Text bold wrap="truncate-end">
+            Merge train · {train ? `${train.open.length} unmerged` : 'not read from GitHub yet'}
+            {train?.merged ? ` · ${train.merged} merged` : ''}
+          </Text>
+          {train?.open.map(e => (
+            <Box flexDirection="column">
+              <Text color={e.next ? 'success' : 'text'} bold={e.next} wrap="truncate-end">
+                {`${'  '.repeat(e.depth)}${e.order}. #${e.number} ${e.title}${e.next ? '  (next)' : ''}`}
+              </Text>
+              <Text dimColor wrap="truncate-end">
+                {`${'  '.repeat(e.depth)}   ${prChips(e).join(' · ')}`}
+              </Text>
+            </Box>
+          ))}
+          {train && <Text dimColor>Checked on GitHub {ago(train.checkedAt, nowMs)}</Text>}
+          {train?.error && (
+            <Text color="error" wrap="truncate-end">
+              {train.error}
+            </Text>
+          )}
+          {prsFailed && (
+            <Text color="error" wrap="truncate-end">
+              room prs: {prsFailed}
+            </Text>
+          )}
         </Box>
 
         <Box flexDirection="column" marginTop={1}>

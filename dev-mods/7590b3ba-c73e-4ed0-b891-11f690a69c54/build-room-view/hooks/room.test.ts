@@ -3,15 +3,22 @@ import { expect, test } from 'claude-code/testing'
 import type { Ticket } from '../types'
 import {
   activeAgents,
+  ago,
+  belongs,
+  installedRoomCli,
   columnOf,
   featureGroups,
   gateCount,
   isNarrow,
+  lacksPrs,
   namedRun,
   openQuestions,
   parseEvents,
+  parsePrs,
   parseTickets,
   pickRun,
+  prChips,
+  shouldCheck,
   ticketMeta,
   visible,
   COLUMNS,
@@ -123,4 +130,70 @@ test('the stacked layout starts below 108 columns, and only the newest three mer
   expect(visible(merged, five).shown.map(x => x.id)).toEqual(['m3', 'm4', 'm5'])
   expect(visible(merged, five).hidden).toBe(2)
   expect(visible(COLUMNS[0]!, five).hidden).toBe(0)
+})
+
+test('a session working one of a run\'s tickets belongs to that run, after a named run and the orchestrator\'s', () => {
+  const list = [{ ...cand('/b/a', 'orch-a', 1), sessions: ['worker-a'] }, cand('/b/b', 'orch-b', 9)]
+  expect(pickRun(list, 'worker-a', '')).toEqual({ candidate: list[0], how: 'member' })
+  expect(pickRun(list, 'orch-b', '')?.how).toBe('matched')
+  expect(belongs('member') && belongs('matched')).toBe(true)
+  expect(belongs('newest') || belongs('named')).toBe(false)
+})
+
+test('room prs runs on an event at most once a minute, never two at once', () => {
+  expect(shouldCheck({ dirty: true, running: false, lastMs: 0 }, 60_000)).toBe(true)
+  expect(shouldCheck({ dirty: true, running: false, lastMs: 10_000 }, 60_000)).toBe(false)
+  expect(shouldCheck({ dirty: false, running: false, lastMs: 0 }, 600_000)).toBe(false)
+  expect(shouldCheck({ dirty: true, running: true, lastMs: 0 }, 600_000)).toBe(false)
+})
+
+test('an old room copy falls back to the installed plugin room CLI', () => {
+  expect(lacksPrs("room: error: argument cmd: invalid choice: 'prs' (choose from 'log', 'ask')")).toBe(true)
+  expect(lacksPrs('gh: not logged in')).toBe(false)
+  const installed = JSON.stringify({ plugins: { 'other@x': [{ installPath: '/o' }], 'sf@sf': [{ installPath: '/cache/sf/0.7.32' }] } })
+  expect(installedRoomCli(installed)).toBe('/cache/sf/0.7.32/scripts/room')
+  expect(installedRoomCli('{"plugins":{}}')).toBe(undefined)
+  expect(installedRoomCli('not json')).toBe(undefined)
+})
+
+const pr = (over: Record<string, unknown>) => ({
+  key: 'o/r#1', number: 1, title: 'One', state: 'OPEN', draft: false, base: 'staging',
+  ci: { passed: 3, failed: 0, running: 0, failing: [] }, reviews: [], threads: { bots: 0, humans: 0 },
+  mergeable: 'MERGEABLE', behind: 0, builtBy: 'session', readOnly: false, order: 1, depth: 0, waitsOn: [], next: false,
+  ready: false, ...over,
+})
+
+test('prs.json gives the unmerged PRs in merge order and counts the merged ones', () => {
+  const train = parsePrs(JSON.stringify({ checkedAt: '2026-10-20T10:00:00Z', error: null, prs: [
+    pr({ number: 3, order: 2 }), pr({ number: 2, order: 1, next: true }), pr({ number: 9, state: 'MERGED', order: null }),
+    pr({ number: 8, state: 'CLOSED', order: null }), { junk: true },
+  ] }))
+  expect(train.open.map(e => e.number)).toEqual([2, 3])
+  expect(train.merged).toBe(1)
+  expect(train.checkedAt).toBe('2026-10-20T10:00:00Z')
+  expect(train.error).toBeNull()
+  expect(() => parsePrs('{ half')).toThrow()
+})
+
+test('a PR\'s chips say CI, reviews, threads, conflicts, behind and ready', () => {
+  expect(prChips(pr({ reviews: [{ login: 'a', state: 'APPROVED' }], ready: true }))).toEqual([
+    'CI green', 'approved by 1', '0 open threads', 'ready to merge',
+  ])
+  expect(prChips(pr({
+    ci: { passed: 1, failed: 1, running: 1, failing: ['unit'] }, threads: { bots: 2, humans: 1 }, mergeable: 'CONFLICTING',
+    behind: 12, draft: true, builtBy: 'factory', readOnly: true, waitsOn: ['t9'],
+    reviews: [{ login: 'a', state: 'APPROVED' }, { login: 'b', state: 'CHANGES_REQUESTED' }],
+  }))).toEqual([
+    'CI failed: unit', 'changes requested', '3 open threads (2 bot)', 'merge conflict', '12 behind staging', 'draft',
+    'factory build', 'read-only', 'waits on t9',
+  ])
+  expect(prChips(pr({ ci: { passed: 3, failed: 0, running: 38, failing: [] } }))[0]).toBe('CI running 38 of 41')
+})
+
+test('checkedAt reads as a time ago', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z')
+  expect(ago('2026-10-20T11:58:00Z', now)).toBe('2 min ago')
+  expect(ago('2026-10-20T11:59:50Z', now)).toBe('just now')
+  expect(ago('2026-10-20T09:00:00Z', now)).toBe('3 h ago')
+  expect(ago(null, now)).toBe('never')
 })

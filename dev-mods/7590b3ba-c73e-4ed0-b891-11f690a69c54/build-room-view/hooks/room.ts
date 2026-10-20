@@ -1,4 +1,4 @@
-import type { AgentLine, Question, Run, Ticket } from '../types'
+import type { AgentLine, PrEntry, Question, Run, Ticket, Train } from '../types'
 
 // the session's sub-agents that are still doing something, or failed
 export const activeAgents = (list: AgentLine[]): AgentLine[] =>
@@ -160,9 +160,10 @@ export const openQuestions = (events: Ev[]): Question[] => {
   })
 }
 
-export type Candidate = { dir: string; slug: string; orchestrator: string; mtimeMs: number }
+export type Candidate = { dir: string; slug: string; orchestrator: string; mtimeMs: number; sessions?: string[] }
 
-// A run named in a prompt or command wins, then the run whose orchestrator is this session, then the newest.
+// A run named in a prompt or command wins, then the run whose orchestrator is this session, then the run with a
+// ticket worked by this session, then the newest.
 export const pickRun = (
   list: Candidate[],
   title: string,
@@ -174,6 +175,8 @@ export const pickRun = (
   if (hit) return { candidate: hit, how: 'named' }
   const mine = title ? byTime.find(c => c.orchestrator === title) : undefined
   if (mine) return { candidate: mine, how: 'matched' }
+  const member = title ? byTime.find(c => c.sessions?.includes(title)) : undefined
+  if (member) return { candidate: member, how: 'member' }
   const first = byTime[0]
 
   return first ? { candidate: first, how: 'newest' } : undefined
@@ -182,3 +185,81 @@ export const pickRun = (
 // the run slug from a path or prompt that mentions ~/FyxerGh/build-room/<slug>
 export const namedRun = (text: string): string | undefined =>
   text.match(/build-room\/([\w.-]+)/g)?.at(-1)?.split('/')[1]
+
+// a session belongs to a room when it orchestrates it or works one of its tickets: only those run `room prs`
+export const belongs = (how: Run['how']): boolean => how === 'matched' || how === 'member'
+
+export const PRS_EVERY_MS = 60_000
+
+// `room prs` runs on a Claude event at most once a minute, and never while one is still running
+export const shouldCheck = (s: { dirty: boolean; running: boolean; lastMs: number }, nowMs: number): boolean =>
+  s.dirty && !s.running && nowMs - s.lastMs >= PRS_EVERY_MS
+
+// a room copied before `room prs` existed rejects the subcommand; argparse says so on stderr
+export const lacksPrs = (stderr: string): boolean => /invalid choice: '?prs'?/.test(stderr)
+
+// the installed sf plugin's `room`, from ~/.claude/plugins/installed_plugins.json, for a room whose copy is too old
+export const installedRoomCli = (installedJson: string): string | undefined => {
+  try {
+    const plugins = (JSON.parse(installedJson) as { plugins?: Record<string, { installPath?: unknown }[]> }).plugins ?? {}
+    const key = Object.keys(plugins).find(k => k.startsWith('sf@'))
+    const path = key ? plugins[key]?.[0]?.installPath : undefined
+    return typeof path === 'string' && path ? `${path}/scripts/room` : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const isEntry = (v: unknown): v is PrEntry =>
+  typeof v === 'object' && v !== null && typeof (v as PrEntry).number === 'number' && typeof (v as PrEntry).state === 'string'
+
+// prs.json: the unmerged PRs in merge order, and a count of the merged ones
+export const parsePrs = (text: string): Train => {
+  const j = JSON.parse(text) as Record<string, unknown>
+  const list = (Array.isArray(j.prs) ? j.prs : []).filter(isEntry)
+
+  return {
+    checkedAt: typeof j.checkedAt === 'string' ? j.checkedAt : null,
+    error: typeof j.error === 'string' ? j.error : null,
+    open: list.filter(e => e.state === 'OPEN').sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    merged: list.filter(e => e.state === 'MERGED').length,
+  }
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// the Room UI's chips, as text
+export const prChips = (e: PrEntry): string[] => {
+  const ci = e.ci ?? { passed: 0, failed: 0, running: 0, failing: [] }
+  const states = (e.reviews ?? []).map(r => r.state)
+  const approved = states.filter(s => s === 'APPROVED').length
+  const threads = (e.threads?.bots ?? 0) + (e.threads?.humans ?? 0)
+  const total = ci.passed + ci.failed + ci.running
+
+  return [
+    ci.failed
+      ? `CI failed: ${ci.failing.join(', ')}`
+      : ci.running
+        ? `CI running ${ci.running} of ${total}`
+        : ci.passed
+          ? 'CI green'
+          : 'no CI',
+    states.includes('CHANGES_REQUESTED') ? 'changes requested' : approved ? `approved by ${approved}` : 'no review',
+    threads ? `${plural(threads, 'open thread')} (${e.threads.bots} bot)` : '0 open threads',
+    e.mergeable === 'CONFLICTING' ? 'merge conflict' : '',
+    e.behind ? `${e.behind} behind ${e.base}` : '',
+    e.draft ? 'draft' : '',
+    e.builtBy === 'factory' ? 'factory build' : '',
+    e.readOnly ? 'read-only' : '',
+    e.waitsOn?.length ? `waits on ${e.waitsOn.join(', ')}` : '',
+    e.ready ? 'ready to merge' : '',
+  ].filter(Boolean)
+}
+
+export const ago = (iso: string | null, nowMs: number): string => {
+  const ms = iso ? nowMs - Date.parse(iso) : NaN
+  if (!Number.isFinite(ms)) return 'never'
+  const min = Math.max(0, Math.round(ms / 60_000))
+
+  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} d ago`
+}
