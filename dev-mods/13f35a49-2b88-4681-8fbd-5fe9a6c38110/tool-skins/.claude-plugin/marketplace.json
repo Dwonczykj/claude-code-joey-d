@@ -1,0 +1,5 @@
+{
+  "name": "joey-mods",
+  "owner": { "name": "Joey Dwonczyk" },
+  "plugins": [{ "name": "tool-skins", "source": "./" }]
+}

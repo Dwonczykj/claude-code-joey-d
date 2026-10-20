@@ -1,0 +1,14 @@
+{
+  "name": "tool-skins",
+  "version": "0.1.0",
+  "description": "Reskins tool calls with per-tool icons and a colour theme; edits get their own colour.",
+  "userConfig": {
+    "theme": {
+      "type": "string",
+      "title": "Theme",
+      "description": "Colour theme for tool-call rows",
+      "default": "tokyo",
+      "options": ["tokyo", "nord", "dracula", "gruvbox"]
+    }
+  }
+}

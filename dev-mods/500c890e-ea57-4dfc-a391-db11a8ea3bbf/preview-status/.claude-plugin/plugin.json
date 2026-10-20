@@ -1,0 +1,6 @@
+{
+  "name": "preview-status",
+  "version": "0.1.0",
+  "description": "Pane showing CI and deploy-preview state of your open web-app PRs, for the current ticket or all of them",
+  "types": "./types/index.d.ts"
+}

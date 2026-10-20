@@ -1,0 +1,5 @@
+{
+  "name": "joey-savvy",
+  "owner": { "name": "Joey Dwonczyk" },
+  "plugins": [{ "name": "savvy-progress", "source": "./" }]
+}

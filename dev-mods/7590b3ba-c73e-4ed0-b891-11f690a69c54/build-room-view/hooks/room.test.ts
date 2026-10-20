@@ -23,6 +23,7 @@ test('a ticket lands in the column of its queue, else of its state, else Queued'
   expect(columnOf(t({ queue: 'CI and bots' })).id).toBe('ci')
   expect(columnOf(t({ state: 'PR' })).id).toBe('ci')
   expect(columnOf(t({ state: 'WAITING ON JOEY' })).id).toBe('call')
+  expect(columnOf(t({ state: 'FACTORY' })).id).toBe('building')
   expect(columnOf(t({ state: 'SOMETHING NEW' })).id).toBe('queued')
 })
 

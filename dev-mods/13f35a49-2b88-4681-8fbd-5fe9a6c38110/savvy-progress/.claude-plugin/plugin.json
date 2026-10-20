@@ -1,0 +1,6 @@
+{
+  "name": "savvy-progress",
+  "version": "0.1.0",
+  "description": "A task progress bar above the prompt and a live panel of sub-agents with model, steps and tokens.",
+  "types": "./types/index.d.ts"
+}

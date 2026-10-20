@@ -1,0 +1,1 @@
+{ "name": "push-pass", "version": "0.1.0", "description": "Allows a plain git push of one joeydwonczyk/ branch without a prompt." }

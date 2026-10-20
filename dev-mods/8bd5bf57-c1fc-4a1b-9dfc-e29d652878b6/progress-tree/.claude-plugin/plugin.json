@@ -1,0 +1,1 @@
+{ "name": "progress-tree", "version": "0.1.0", "description": "Shows the dependency tree from the session's progress.md State board in a pane", "types": "./types/index.d.ts" }
