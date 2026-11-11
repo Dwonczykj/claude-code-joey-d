@@ -131,6 +131,11 @@ Read the commits and diff to write:
   1. <task 1, one sentence>
   2. <task 2, one sentence>
 
+  ## Design   ← only when the PR changes the UX significantly (see below)
+
+  <screenshots of the Claude Design canvas showing the new UX, at desktop width and
+  375px, plus the design's link and the Linear issue holding the same PNGs>
+
   ## Supporting evidence & Impact   ← only when an impact report exists (see below)
 
   <from <state dir>/impact.md: the gap / baseline table, the per-day table if any,
@@ -167,6 +172,8 @@ Read the commits and diff to write:
   ```
 
 Keep each section factual and specific — "None" is a real, valid answer for Testing/Risks on a trivial change, not something to pad out.
+
+**Design (significant UX change).** A PR changes the UX significantly when a user would notice a new or reworked page, flow, layout or component, not a copy tweak or a restyle of one element. Such a PR must show its new UX from a Claude Design canvas (the Artifact tool's design type: `quickstart` with intent `design`). Reuse the canvas a design task already chose (its screenshots sit in the task dir the brief names); otherwise make one canvas of the built UX. Save its screenshots as `<page>-desktop.png` and `<page>-375.png`. Put them under `## Design` with the canvas link: GitHub takes images only through its web editor, so attach them there with Claude in Chrome's `file_upload` when you have it, else list the files and say they wait on Joey in the Phase 8 report. Always attach the same PNGs to the PR's Linear issue (`prepare_attachment_upload`, then `create_attachment_from_upload`, loaded with `ToolSearch`) and link that issue under `## Design`. With no Linear issue, say so in the Phase 8 report. The section is optional for CI, so its absence never fails the template check.
 
 **Supporting evidence & Impact (web-app).** Look for `<state dir>/impact.md`, written by the `sf:size-change-impact` skill: the state dir is the folder of the run's `progress.md`, `~/FyxerGh/build-room/<slug>/` after an orchestrate adopt, else `.scratch/<slug>/` in the worktree (slug from the factory run, the Linear code, or the branch). If it exists, add the section between Testing and Risks, built from that report only. If it does not exist and the change is a `feat:` or `fix:` that touches something a metric, cost model or funnel reads, say so in the Phase 8 report and offer `sf:size-change-impact`; do not invent numbers. Skip the section for `chore:` and for reports whose tier is "None". The section is not a required template heading, so its absence never fails CI.
 
