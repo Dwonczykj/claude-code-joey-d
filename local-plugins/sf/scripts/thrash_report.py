@@ -6,24 +6,29 @@
 
 Per session: failed tool calls, identical repeated calls (extra runs beyond the first), and tool
 calls per slice (calls / sf skills run, min 1: the record has no finer slice marker).
-Score = failed + repeats; worst sessions first. The report names real sessions: keep it out of git.
+Score = 3 * failed + repeats (polling tools excluded from repeats); worst sessions first. The report names real sessions: keep it out of git.
 """
 import argparse
 import glob
 import json
 import os
 
+# polling and bookkeeping tools: repeating them is the job, not thrash (grow this list if the ranking skews)
+POLLING = {"mcp__ccd_turn__update_plan", "mcp__ccd_turn__wrap_up", "Monitor", "mcp__ccd_pr__get_status", "ScheduleWakeup",
+           "ReadNotifications", "TaskOutput", "mcp__ccd_session_mgmt__list_sessions"}
+FAIL_WEIGHT = 3  # a failed call costs more than a repeated one
 DEFAULT_RECORDS = os.path.expanduser("~/FyxerGh/build-room/sf-outer-loop/records")
 
 
 def metrics(r):
     calls = r["tool_calls"]
     failed = sum(c["error"] for c in calls)
-    repeats = sum(x["count"] - 1 for x in r["repeated"])
+    rep = [x for x in r["repeated"] if x["name"] not in POLLING]
+    repeats = sum(x["count"] - 1 for x in rep)
     skills = r["why_sf"]["skills"]
     return {"session": r["session_id"], "start": r["start"], "skills": skills, "calls": len(calls), "failed": failed,
-            "repeats": repeats, "per_slice": round(len(calls) / max(len(skills), 1), 1), "score": failed + repeats,
-            "top_repeat": r["repeated"][0] if r["repeated"] else None}
+            "repeats": repeats, "per_slice": round(len(calls) / max(len(skills), 1), 1), "score": FAIL_WEIGHT * failed + repeats,
+            "top_repeat": rep[0] if rep else None}
 
 
 def load(records, limit):
@@ -38,7 +43,7 @@ def report(ms, top):
     out = [f"# sf thrash baseline ({len(ms)} sessions)", "",
            f"Totals: {sum(m['calls'] for m in ms)} calls, {sum(m['failed'] for m in ms)} failed, "
            f"{sum(m['repeats'] for m in ms)} repeated. Mean score {sum(m['score'] for m in ms) / n:.1f}.", "",
-           "Score = failed calls + repeated calls. Slice = one sf skill run (min 1 per session).", "",
+           f"Score = {FAIL_WEIGHT} x failed calls + repeated calls (polling tools excluded). Slice = one sf skill run (min 1 per session).", "",
            f"## Worst {top}", "", "| session | start | skills | calls | failed | repeats | calls/slice | most repeated |", "|---|---|---|---|---|---|---|---|"]
     for m in ms[:top]:
         t = m["top_repeat"]
@@ -53,7 +58,9 @@ def self_check():
     r = lambda sid, calls, rep, skills: {"session_id": sid, "start": "2026-01-01", "tool_calls": calls, "repeated": rep,
                                          "why_sf": {"skills": skills}}
     a = metrics(r("a", [c(True), c(True), c(False), c(False)], [{"name": "Bash", "input": "x", "count": 3}], ["sf:plan", "sf:build"]))
-    assert (a["failed"], a["repeats"], a["per_slice"], a["score"]) == (2, 2, 2.0, 4), a
+    assert (a["failed"], a["repeats"], a["per_slice"], a["score"]) == (2, 2, 2.0, 8), a
+    p = metrics(r("p", [c(False)], [{"name": "Monitor", "input": "x", "count": 9}], []))
+    assert p["repeats"] == 0 and p["top_repeat"] is None, p
     b = metrics(r("b", [c(False)], [], []))
     assert (b["score"], b["per_slice"]) == (0, 1.0), b
     text = report([b, a], 1)
