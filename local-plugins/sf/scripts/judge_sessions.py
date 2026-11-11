@@ -7,7 +7,7 @@
     python3 judge_sessions.py --self-check
 
 Reads extractor records only (extract_sessions.py). The unit judged is one PR: a session's score is the mean
-of its PRs. Rubrics and the pinned model live in ../evals/judge/graders/*.md (claude plugin eval grader
+of its PRs, but the labelled sample takes one-PR sessions only, so it leans to smaller sessions. Rubrics and the pinned model live in ../evals/judge/graders/*.md (claude plugin eval grader
 format). They are frozen: change one only by re-running `agree` against Joey's labels and re-freezing by hand,
 never through the doctor or the replay gate.
 
@@ -31,7 +31,7 @@ STATE = os.path.expanduser("~/FyxerGh/build-room/sf-outer-loop")
 API = "https://api.anthropic.com/v1/messages"  # pinned: never a host-set ANTHROPIC_BASE_URL
 ANCHORS = (0.0, 0.25, 0.5, 0.75, 1.0)
 METRICS = ("verbosity", "redundant_tests")
-TEST_RE = re.compile(r"(test|spec)[^/]*\.\w+$|__tests__/|/tests?/")
+TEST_RE = re.compile(r"(^|/)(test_[^/]*|[^/]*[._-](test|spec)\.\w+)$|__tests__/|(^|/)tests?/")
 CAP = 8000  # chars of test hunks shown to Joey and the judge alike
 
 
@@ -102,7 +102,7 @@ def write_sheet(items, path):
 
 
 def read_sheet(path):
-    """-> {url: {"session_id", "verbosity", "redundant_tests"}} for the PRs Joey scored; skips fenced text."""
+    """-> {url: {"session_id", "verbosity"?, "redundant_tests"?}} for every PR on the sheet; skips fenced text."""
     labels, url, fenced = {}, None, False
     for line in open(path, encoding="utf-8"):
         line = line.rstrip("\n")
@@ -122,6 +122,10 @@ def read_sheet(path):
         m = re.match(r"(verbosity|redundant_tests):\s*(\S+)", line)
         if m and url:
             labels[url][m.group(1)] = parse_score(m.group(2))
+    return labels
+
+
+def filled(labels):
     return {u: l for u, l in labels.items() if all(k in l for k in METRICS)}
 
 
@@ -145,26 +149,51 @@ def ask(g, text, key):
     r = urllib.request.Request(API, json.dumps(req).encode(), {"x-api-key": key, "anthropic-version": "2023-06-01",
                                                               "content-type": "application/json"})
     with urllib.request.urlopen(r, timeout=120) as resp:
-        out = json.load(resp)["content"][0]["text"]
-    return json.loads(out[out.index("{"):out.rindex("}") + 1])
+        return parse_reply(json.load(resp)["content"][0]["text"])
+
+
+def parse_reply(text):
+    """The rubric asks for one JSON line; tolerate prose around it."""
+    ans = json.loads(text[text.index("{"):text.rindex("}") + 1])
+    return parse_score(ans["score"]), ans.get("why", "")
 
 
 def judge(records, state):
-    labels = read_sheet(os.path.join(state, "labels", "sheet.md")) if os.path.exists(os.path.join(state, "labels", "sheet.md")) else {}
-    items = [c for c in candidates(records) if c["url"] in labels] if labels else pick(candidates(records), 20)
+    sheet = os.path.join(state, "labels", "sheet.md")
+    if not os.path.exists(sheet):
+        sys.exit("no %s: run `sheet` first" % sheet)
+    on_sheet = read_sheet(sheet)
+    items = [c for c in candidates(records) if c["url"] in on_sheet]
     key, gs = api_key(), {m: grader(m) for m in METRICS}
     path = os.path.join(state, "labels", "judge.jsonl")
+    done = set(latest_rows(path, gs))
     with open(path, "a", encoding="utf-8") as f:
         for c in items:
+            if c["url"] in done:
+                continue
             row = {"session_id": c["session_id"], "url": c["url"]}
-            for m, text in (("verbosity", c["body"]), ("redundant_tests", c["tests"] or "(no test files in the diff)")):
-                ans = ask(gs[m], text, key)
-                row[m] = parse_score(ans["score"])
-                row[m + "_why"] = ans.get("why", "")
-                row[m + "_rubric"] = gs[m]["sha"]
+            try:
+                for m, text in (("verbosity", c["body"] or "(empty PR body)"),
+                                ("redundant_tests", c["tests"] or "(no test files in the diff)")):
+                    row[m], row[m + "_why"] = ask(gs[m], text, key)
+                    row[m + "_rubric"] = gs[m]["sha"]
+            except (OSError, ValueError, KeyError, IndexError) as e:  # one bad PR must not stop the run; rerun retries it
+                print(c["url"], "failed:", e, file=sys.stderr)
+                continue
             row["model"], row["temperature"] = gs["verbosity"]["model"], gs["verbosity"]["temperature"]
             f.write(json.dumps(row) + "\n")
             print(row["url"], row["verbosity"], row["redundant_tests"])
+
+
+def latest_rows(path, gs):
+    """Last judge row per PR made with the current (frozen) rubrics; rows from older rubrics are ignored."""
+    rows = {}
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            row = json.loads(line)
+            if all(row.get(m + "_rubric") == gs[m]["sha"] for m in METRICS):
+                rows[row["url"]] = row
+    return rows
 
 
 def agreement(pairs):
@@ -178,11 +207,8 @@ def agreement(pairs):
 
 
 def agree(state):
-    labels = read_sheet(os.path.join(state, "labels", "sheet.md"))
-    latest = {}
-    for line in open(os.path.join(state, "labels", "judge.jsonl"), encoding="utf-8"):
-        row = json.loads(line)
-        latest[row["url"]] = row
+    labels = filled(read_sheet(os.path.join(state, "labels", "sheet.md")))
+    latest = latest_rows(os.path.join(state, "labels", "judge.jsonl"), {m: grader(m) for m in METRICS})
     rows = [(labels[u], latest[u]) for u in labels if u in latest]
     out = ["# Judge agreement with Joey's labels", "",
            "%d PRs labelled and judged. Model %s, temperature %s." % (len(rows), *(
@@ -214,12 +240,15 @@ def self_check():
     n, mae, w, na = agreement([(1.0, 0.75), (0.5, 0.0), (None, None), (None, 0.5), (0.25, 0.25)])
     assert (n, na) == (3, 1) and abs(mae - 0.25) < 1e-9 and abs(w - 2 / 3) < 1e-9, (n, mae, w, na)
     diff = "diff --git a/src/x.ts b/src/x.ts\n+a\ndiff --git a/src/x.test.ts b/src/x.test.ts\n+it()\n"
+    assert not any(TEST_RE.search(f) for f in ("src/latest.ts", "lib/inspect.py", "src/respect.ts"))
+    assert all(TEST_RE.search(f) for f in ("a/x.test.ts", "test_x.py", "a/__tests__/y.ts", "tests/z.py"))
+    assert parse_reply('Sure: {"score": "0.5", "why": "x"} done') == (0.5, "x")
     assert test_hunks(diff) == "diff --git a/src/x.test.ts b/src/x.test.ts\n+it()\n"
-    items = [{"session_id": "s1", "url": "https://github.com/o/r/pull/1", "body": "## Summary\n" + FENCE + "\nverbosity: 0\n" + FENCE, "tests": ""}]
+    items = [{"session_id": "s1", "url": "https://github.com/o/r/pull/1", "body": "## Summary\n" + FENCE + "\nverbosity: 0\n" + FENCE, "tests": FENCE + "\nredundant_tests: 0\n" + FENCE}]
     with tempfile.TemporaryDirectory() as tmp:
         p = os.path.join(tmp, "labels", "sheet.md")
         write_sheet(items, p)
-        assert read_sheet(p) == {}  # unfilled; a fence and score line inside the body stay text
+        assert filled(read_sheet(p)) == {} and list(read_sheet(p)) == ["https://github.com/o/r/pull/1"]  # unfilled; a fence and score line inside the body stay text
         s = open(p).read().replace("verbosity: \n", "verbosity: 0.5\n", 1).replace("redundant_tests: \n", "redundant_tests: na\n", 1)
         open(p, "w").write(s)
         assert read_sheet(p) == {"https://github.com/o/r/pull/1": {"session_id": "s1", "verbosity": 0.5, "redundant_tests": None}}
@@ -236,11 +265,14 @@ if __name__ == "__main__":
     ap.add_argument("--records", default=os.path.join(STATE, "records"))
     ap.add_argument("--state", default=STATE)
     ap.add_argument("-n", type=int, default=20)
+    ap.add_argument("--force", action="store_true", help="overwrite an existing sheet.md")
     ap.add_argument("--self-check", action="store_true")
     a = ap.parse_args()
     if a.self_check:
         self_check()
     elif a.cmd == "sheet":
+        if os.path.exists(os.path.join(a.state, "labels", "sheet.md")) and not a.force:
+            sys.exit("sheet.md exists and may hold Joey's labels; pass --force to overwrite")
         items = pick(candidates(a.records), a.n)
         write_sheet(items, os.path.join(a.state, "labels", "sheet.md"))
         print("%d PRs -> %s" % (len(items), os.path.join(a.state, "labels", "sheet.md")))
