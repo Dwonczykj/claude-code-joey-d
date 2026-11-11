@@ -928,13 +928,14 @@ def repo_of(t, before):
 
 
 def pr_number(t, before):
-    m = PR_URL.match(t.get("prUrl") or "")
-    if m:
-        return int(m[2])
+    # `pr` first: workers update it when a PR is replaced and leave the old prUrl behind
     try:
-        return int(str(t.get("pr") or "").lstrip("#")) if t.get("pr") else before.get("number")
+        if t.get("pr"):
+            return int(str(t["pr"]).lstrip("#"))
     except ValueError:
-        return before.get("number")
+        pass
+    m = PR_URL.match(t.get("prUrl") or "")
+    return int(m[2]) if m else before.get("number")
 
 
 def fetch_pr(repo, number):
@@ -1096,7 +1097,8 @@ def prs(a):
         except BlockingIOError:
             print("room prs: another room prs is checking GitHub for this room; left it to finish")
             return 0
-        return check_prs(a.dir)
+        code = 0 if a.cached else check_prs(a.dir)
+        return print_prs(a.dir) if a.print or a.cached else code
     finally:
         os.close(lock)
 
@@ -1110,13 +1112,20 @@ def check_prs(d):
         old = {}
     before = {e.get("ticket"): e for e in old.get("prs") or [] if isinstance(e, dict)}
     tickets, entries, errors, fetched, logged = raw_tickets(d), [], [], 0, 0
+    # a ticket with a bare `pr` and no prUrl or live worktree takes the repo every other ticket uses
+    known = [r for r in [*(e.get("repo") for e in before.values()),
+                         *(PR_URL.match(t["prUrl"])[1] for t in tickets if PR_URL.match(t.get("prUrl") or ""))] if r]
+    room_repo = max(set(known), key=known.count) if known else None
     for t in tickets:
         if not isinstance(t.get("id"), str):
             continue
         b = before.get(t["id"], {})
         if not (t.get("pr") or t.get("prUrl") or t.get("branch") or b):
             continue
-        repo, number = repo_of(t, b), pr_number(t, b)
+        repo, number = repo_of(t, b) or room_repo, pr_number(t, b)
+        if b.get("number") == number and b.get("repo") == repo and b.get("state") in ("MERGED", "CLOSED"):
+            entries.append(b)  # a finished PR does not change; re-reading ~60 of them made Refresh take minutes
+            continue
         if not repo:
             if number:
                 errors.append(f"{t['id']}: no repo for #{number}; set prUrl or worktree")
@@ -1151,6 +1160,61 @@ def check_prs(d):
     n_open = sum(1 for e in doc["prs"] if e["state"] == "OPEN")
     print(f"room prs: {len(doc['prs'])} PRs, {n_open} unmerged, {logged} changes logged"
           + (f"; {doc['error']}" if doc["error"] else ""))
+    return 0
+
+
+def print_prs(d):
+    """Open PRs first, then tickets with no PR, as markdown: a quick look without the Build Room."""
+    try:
+        with open(os.path.join(d, "prs.json"), encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        print("No prs.json yet: run without --cached to read GitHub.")
+        return 1
+    rows = doc.get("prs") or []
+    print(f"Checked {doc.get('checkedAt') or 'never'}" + (f" ({doc['error']})" if doc.get("error") else ""))
+    print("| Ticket | PR | State | CI | Bot threads | Linear |\n|---|---|---|---|---|---|")
+    for e in rows:
+        if e.get("state") != "OPEN":
+            continue
+        c = e.get("ci") or {}
+        ci = "failed" if c.get("failed") else "running" if c.get("running") else "passed" if c.get("passed") else "none"
+        lin = e.get("linearUrl") or e.get("linearIssue") or ""
+        print(f"| {e['ticket']} | [#{e['number']} {e.get('title') or ''}]({e.get('url')}) | "
+              f"{'draft' if e.get('draft') else 'open'} | {ci} | {(e.get('threads') or {}).get('bots', 0)} | {lin} |")
+    have = {e.get("ticket") for e in rows}
+    todo = [t for t in raw_tickets(d) if t.get("id") not in have and t.get("state") not in ("MERGED", "DONE")]
+    if todo:
+        print("\nNo PR yet: " + ", ".join(f"{t['id']} ({t.get('state')}{', ' + t['linear'] if t.get('linear') else ''})"
+                                         for t in todo))
+    merged = sum(1 for e in rows if e.get("state") == "MERGED")
+    print(f"\n{merged} merged, not listed.")
+    return 0
+
+
+def link_pr(a):
+    """Record a PR a session just opened on its ticket: the pr-opened hook's only write, so the room never waits
+    on the orchestrator to copy it over. The server's watch on tickets.json then reads GitHub."""
+    m = PR_URL.match(a.url)
+    if not m:
+        return fail("link-pr", f"--url {a.url} is not a GitHub PR url")
+    path = os.path.join(a.dir, "tickets.json")
+    lock = open(os.path.join(a.dir, ".link-pr.lock"), "w")
+    fcntl.flock(lock, fcntl.LOCK_EX)  # two sessions opening PRs at once must not drop each other's write
+    with open(path, encoding="utf-8") as f:
+        doc = json.load(f)
+    t = next((t for t in doc.get("tickets") or [] if isinstance(t, dict) and t.get("id") == a.ticket), None)
+    if not t:
+        return fail("link-pr", f"no ticket {a.ticket}")
+    if t.get("prUrl") == a.url and str(t.get("pr") or "").lstrip("#") == m[2]:
+        return 0
+    old = t.get("pr")
+    t["pr"], t["prUrl"] = int(m[2]), a.url
+    if t.get("state") in (None, "NOT STARTED", "BUILDING", "QUEUED"):
+        t["state"] = "PR"
+    write_json(path, doc)
+    event(a.dir, a.ticket, "github", "ci", f"#{m[2]} opened" + (f" (was #{old})" if old else ""))
+    print(f"room link-pr: {a.ticket} -> #{m[2]}")
     return 0
 
 
@@ -1228,11 +1292,15 @@ def main(argv=None):
     rp = cmd("reopen", "undo Joey's answer: re-ask the question as a new open card", ticket=False)
     rp.add_argument("--question", required=True, type=int, help="id of the answered question event")
     cmd("refresh", "re-copy each adopted run's tickets onto this room's board; writes only this room", ticket=False)
-    cmd("prs", "read each ticket's PR from GitHub into prs.json, with the merge order; no polling", ticket=False)
+    lkp = cmd("link-pr", "set a ticket's pr and prUrl to a PR its session just opened (the pr-opened hook)")
+    lkp.add_argument("--url", required=True)
+    pp = cmd("prs", "read each ticket's PR from GitHub into prs.json, with the merge order; no polling", ticket=False)
+    pp.add_argument("--print", action="store_true", help="then print open PRs and unbuilt tickets as markdown")
+    pp.add_argument("--cached", action="store_true", help="print prs.json without asking GitHub")
 
     a = p.parse_args(argv)
     return {"log": log, "ask": ask, "signoff": signoff, "start": start, "render": render, "tier": tier,
-            "podium": podium, "join": join, "new": new, "adopt": adopt, "refresh": refresh, "prs": prs, "withdraw": withdraw, "reopen": reopen, "inbox": inbox}[a.cmd](a)
+            "podium": podium, "join": join, "new": new, "adopt": adopt, "refresh": refresh, "prs": prs, "link-pr": link_pr, "withdraw": withdraw, "reopen": reopen, "inbox": inbox}[a.cmd](a)
 
 
 if __name__ == "__main__":
