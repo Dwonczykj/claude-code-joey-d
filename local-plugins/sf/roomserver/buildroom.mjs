@@ -18,6 +18,7 @@ const MAX_BODY = 16_000;
 const CHAT_TAIL_BYTES = 400_000;
 const CHAT_MESSAGES = 20;
 const CHAT_TEXT_MAX = 1500;
+const PRS_CHECK_MS = 5 * 60_000;
 const PRS_TIMEOUT_MS = 300_000; // `room prs` reads each PR one at a time
 const ROOM_NAME = /^[A-Za-z0-9][\w.-]{0,63}$/; // a room is a dir under build-room, never a path
 const LOOPBACK = new Set(["127.0.0.1", "::ffff:127.0.0.1"]);
@@ -192,6 +193,7 @@ export const createBuildRoom = ({ dirs, port, host, sessionsDir, listLiveSession
     try {
       run.tickets = text ? JSON.parse(text) : null;
       run.ticketsError = null;
+      run.prSig = JSON.stringify((run.tickets?.tickets ?? []).map((t) => [t.id, t.pr, t.prUrl, t.branch]));
     } catch (error) {
       // A half-written file: keep the last good queue on screen and say why it is stale.
       run.ticketsError = `tickets.json does not parse: ${error.message}`;
@@ -242,7 +244,10 @@ export const createBuildRoom = ({ dirs, port, host, sessionsDir, listLiveSession
       broadcast({ type: key, run: run.id, [key]: reset ? run[key] : lines, reset });
     } else {
       if (name === "tickets.json") {
+        const before = run.prSig;
         loadTickets(run);
+        // a ticket gained or changed its PR: read GitHub now, so the PRs tab never waits for Refresh
+        if (before !== undefined && before !== run.prSig) refreshPrs({ run: run.id }, () => {});
         broadcast({ type: "tickets", run: run.id, tickets: run.tickets, ticketsError: run.ticketsError, ticketsBytes: run.ticketsBytes });
       } else {
         run.ledger = readText(join(run.dir, "ledger.md"));
@@ -395,6 +400,14 @@ export const createBuildRoom = ({ dirs, port, host, sessionsDir, listLiveSession
       done(200, { ok: true, line: oneLine(stdout) });
     });
   };
+
+  // GitHub changes no local file when CI finishes, a branch falls into conflict or Joey merges in the browser.
+  // So every 5 minutes, re-read any room that still has an open PR. Merged ones are kept, so a check is seconds.
+  setInterval(() => {
+    for (const run of runs.values()) {
+      if ((run.prs?.prs ?? []).some((e) => e.state === "OPEN")) refreshPrs({ run: run.id }, () => {});
+    }
+  }, PRS_CHECK_MS).unref();
 
   const json = (res, code, payload) => {
     res.writeHead(code, { "content-type": "application/json" });

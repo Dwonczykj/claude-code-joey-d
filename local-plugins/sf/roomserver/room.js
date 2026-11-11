@@ -189,7 +189,7 @@ const renderHead = (run, route) => {
   const runs = [...store.runs.values()];
   const badge = (n, warn) => (n ? `<span class="tab-n${warn ? " warn" : ""}">${n}</span>` : "");
   const tabs = [["board", "Board"], ["room", "Room", badge(run ? openQuestions(run).length : 0, true)], ["ledger", "Ledger"],
-    ["prs", "PRs", badge(run ? unmerged(run).length : 0)]]
+    ["prs", "PRs", badge(run ? unmerged(run).length : 0)], ["linear", "Linear"]]
     .map(([id, name, n = ""]) => `<a href="#${id}" class="${route.view === id || (id === "board" && route.view === "ticket") ? "on" : ""}">${name}${n}</a>`)
     .join("");
   const head = document.getElementById("head");
@@ -872,9 +872,49 @@ const updateTurn = () => {
 const parseRoute = () => {
   const [view, id] = location.hash.replace(/^#/, "").split("/");
   if (view === "ticket" && id) return { view, id: decodeURIComponent(id) };
-  return { view: ["room", "ledger", "prs"].includes(view) ? view : "board" };
+  return { view: ["room", "ledger", "prs", "linear"].includes(view) ? view : "board" };
 };
-const VIEWS = { board: boardView, ticket: ticketView, ledger: ledgerView, room: roomView, prs: prsView };
+// The Linear tab: the room's tickets grouped by the Linear issue behind each, with progress as tickets done out of
+// all. The issue comes from the ticket (linearIssue, then its factory `linear` id), else the PRE id in its branch,
+// else the Linear link in its PR's body. Status here is the room's own; Linear is not read.
+const PRE_ID = /\b([A-Z]{2,6}-\d+)\b/i;
+const linearOf = (run, t) => {
+  const e = prFor(run, t);
+  const raw = t.linearIssue || t.linear || (t.branch?.match(PRE_ID) ?? [])[1] || (e?.linearUrl?.match(PRE_ID) ?? [])[1];
+  return raw ? String(raw).match(PRE_ID)?.[1]?.toUpperCase() ?? null : null;
+};
+const DONE_STATES = new Set(["MERGED", "DONE"]);
+const linearView = (run) => {
+  const groups = new Map();
+  for (const t of ticketsOf(run)) {
+    const id = linearOf(run, t) ?? "";
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(t);
+  }
+  // Linear's links need the workspace; take it from any PR body's Linear link rather than hard-code one
+  const workspace = prsOf(run).map((e) => e.linearUrl?.match(/linear\.app\/([\w.-]+)\/issue\//)?.[1]).find(Boolean);
+  const done = (t) => DONE_STATES.has(t.state) || prFor(run, t)?.state === "MERGED";
+  const cards = [...groups.entries()].sort(([a], [b]) => (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b)).map(([id, list]) => {
+    const n = list.filter(done).length;
+    const pct = Math.round((100 * n) / list.length);
+    const open = list.filter((t) => !done(t));
+    const rows = (open.length ? open : list.slice(0, 3)).map((t) => {
+      const e = prFor(run, t);
+      const [state, tone] = phraseOf(t, e);
+      return `<div class="scard-line"><a href="#ticket/${encodeURIComponent(t.id)}">${h(t.id)}</a> <span style="color:${TONE[tone][1]}">${h(state)}</span>${e ? ` · <a href="${h(webUrl(e.url))}" target="_blank" rel="noopener">#${h(e.number)}</a>` : ""}</div>`;
+    }).join("");
+    const title = !id ? "No Linear issue" : workspace
+      ? `<a class="pr-link" href="https://linear.app/${encodeURIComponent(workspace)}/issue/${encodeURIComponent(id)}" target="_blank" rel="noopener">${h(id)}</a>`
+      : h(id);
+    return `<article class="scard">
+      <div class="scard-top">${title}<span class="grow"></span><span class="scard-state">${pct}%</span></div>
+      <div class="scard-line muted">${n} of ${list.length} tickets done${open.length ? `, ${open.length} open:` : ""}</div>
+      <div style="height:4px;background:var(--line,#ddd);border-radius:2px;margin:6px 0"><div style="height:4px;width:${pct}%;background:var(--green);border-radius:2px"></div></div>
+      ${rows}</article>`;
+  });
+  return `<section class="stage"><div class="stage-head"><h2>Linear issues</h2><span class="muted small">Progress is this room's tickets done out of all; Linear itself is not read.</span></div><div class="sgrid">${cards.join("")}</div></section>`;
+};
+const VIEWS = { linear: linearView, board: boardView, ticket: ticketView, ledger: ledgerView, room: roomView, prs: prsView };
 
 let queued = false;
 const render = () => {
