@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn Claude Code session transcripts into one compact JSON record per sf session.
 
-    python3 extract_sessions.py [--projects DIR] [--out DIR] [--since YYYY-MM-DD] [--limit N] [--no-gh] [--force]
+    python3 extract_sessions.py [--projects DIR] [--out DIR] [--since YYYY-MM-DD] [--no-gh] [--force]
     python3 extract_sessions.py --self-check
 
 Reads <projects>/*/<session>.jsonl (default ~/.claude/projects), keeps a session when it used an
@@ -23,7 +23,7 @@ transcripts, so a cloud move swaps only where this script reads from. Record for
      "tokens": {"input": int, "output": int, "cache_read": int, "cache_write": int},
      "cost_usd": float|null,   # the transcript's own total, subagent models included; null when it has none
                                # (tokens above are this transcript's main thread only)
-     "prs": [{"repo": str, "number": int, "title": str|null, "body": str|null,
+     "prs": [{"repo": str, "number": int, "title": str|null, "body": str|null,   # null with --no-gh
               "diff": str|null (<=200 KB), "error": str|null}]}   # only when the session ran `gh pr create`
 
 `input` is the Bash command, the Skill name, or the first of file_path/path/pattern/url/description/
@@ -36,10 +36,15 @@ import glob
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
+import importlib.machinery
+from importlib import util
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+spec = util.spec_from_loader("room", importlib.machinery.SourceFileLoader("room", os.path.join(HERE, "room")))  # no .py extension
+room = util.module_from_spec(spec)
+spec.loader.exec_module(room)  # for gh, GhError and write_json
 DEFAULT_OUT = os.path.expanduser("~/FyxerGh/build-room/sf-outer-loop/records")
 DEFAULT_PROJECTS = os.path.expanduser("~/.claude/projects")
 INPUT_KEYS = ("command", "skill", "file_path", "path", "pattern", "url", "description", "prompt", "query")
@@ -66,22 +71,15 @@ def result_text(block):
     return c if isinstance(c, str) else ""
 
 
-def gh(*args):
-    p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=60)
-    if p.returncode:
-        raise RuntimeError(p.stderr.strip()[:200])
-    return p.stdout
-
-
-def fetch_pr(repo, number):
-    pr = {"repo": repo, "number": number, "title": None, "body": None, "diff": None, "error": None}
+def fetch_pr(pr):
+    """Fill title, body and diff on a {repo, number} entry; a gh failure lands in pr["error"]."""
+    repo, n = pr["repo"], str(pr["number"])
     try:
-        view = json.loads(gh("pr", "view", str(number), "--repo", repo, "--json", "title,body"))
+        view = json.loads(room.gh("pr", "view", n, "--repo", repo, "--json", "title,body"))
         pr["title"], pr["body"] = view["title"], view["body"]
-        pr["diff"] = gh("pr", "diff", str(number), "--repo", repo)[:DIFF_CAP]
-    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as e:
+        pr["diff"] = room.gh("pr", "diff", n, "--repo", repo)[:DIFF_CAP]
+    except (room.GhError, ValueError, KeyError) as e:
         pr["error"] = str(e)
-    return pr
 
 
 def extract(path, use_gh=True):
@@ -116,9 +114,7 @@ def extract(path, use_gh=True):
             if not isinstance(msg, dict):
                 continue
             if d.get("type") == "user":
-                c = msg.get("content")
-                text = c if isinstance(c, str) else " ".join(b.get("text", "") for b in c if isinstance(b, dict)) if isinstance(c, list) else ""
-                why["skills"] += COMMAND_RE.findall(text)
+                why["skills"] += COMMAND_RE.findall(result_text(msg))
             if not isinstance(msg.get("content"), list):
                 continue
             if d.get("type") == "assistant" and isinstance(msg.get("usage"), dict):
@@ -145,7 +141,7 @@ def extract(path, use_gh=True):
                         call["error"] = True
                     if b.get("tool_use_id") in pr_ids and not b.get("is_error"):  # a failed create names a PR that already existed
                         for repo, n in PR_RE.findall(result_text(b)):
-                            prs[(repo, int(n))] = None
+                            prs[(repo, int(n))] = {"repo": repo, "number": int(n), "title": None, "body": None, "diff": None, "error": None}
     why["skills"] = sorted(set(why["skills"]))
     why["rooms"] = sorted(set(why["rooms"]))
     if not (why["skills"] or why["sf_cwd"] or why["rooms"]):
@@ -172,18 +168,18 @@ def extract(path, use_gh=True):
         rec["start"], rec["end"] = min(stamps), max(stamps)
         t0, t1 = (datetime.datetime.fromisoformat(s.replace("Z", "+00:00")) for s in (rec["start"], rec["end"]))
         rec["wall_seconds"] = (t1 - t0).total_seconds()
+    rec["prs"] = list(prs.values())
     if use_gh:
-        rec["prs"] = [fetch_pr(repo, n) for repo, n in prs]
+        for pr in rec["prs"]:
+            fetch_pr(pr)
     return rec
 
 
-def run(projects, out, since, limit, use_gh, force):
+def run(projects, out, since, use_gh, force):
     files = sorted(glob.glob(os.path.join(projects, "*", "*.jsonl")), key=os.path.getmtime, reverse=True)
     os.makedirs(out, exist_ok=True)
     kept = 0
     for path in files:
-        if limit and kept >= limit:
-            break
         if since and datetime.date.fromtimestamp(os.path.getmtime(path)) < since:
             break  # newest first, so every later file is older too
         dest = os.path.join(out, os.path.basename(path)[:-6] + ".json")
@@ -192,9 +188,7 @@ def run(projects, out, since, limit, use_gh, force):
             continue
         rec = extract(path, use_gh)
         if rec:
-            with open(dest + ".tmp", "w", encoding="utf-8") as f:
-                json.dump(rec, f, indent=1)
-            os.replace(dest + ".tmp", dest)
+            room.write_json(dest, rec)
             kept += 1
     print(f"{kept} sf sessions in {out}")
 
@@ -227,7 +221,7 @@ def self_check():
         with open(os.path.join(proj, "slash.jsonl"), "w") as f:  # only trigger: a typed slash command
             f.write(ev(type="user", cwd="/elsewhere", message={"content": "<command-name>/sf:room</command-name>"}) + "\n")
         out = os.path.join(tmp, "out")
-        run(tmp, out, None, 0, False, False)
+        run(tmp, out, None, False, False)
         assert sorted(os.listdir(out)) == ["sess1.json", "slash.json"], os.listdir(out)
         assert json.load(open(os.path.join(out, "slash.json")))["why_sf"]["skills"] == ["sf:room"]
         r = json.load(open(os.path.join(out, "sess1.json")))
@@ -236,15 +230,7 @@ def self_check():
     assert r["repeated"] == [{"name": "Bash", "input": "pnpm test", "count": 2}, {"name": "Bash", "input": "gh pr create --draft", "count": 2}]  # the two Edits differ, so are not repeats and r["retries"] == 1
     assert r["tokens"]["input"] == 24 and r["tokens"]["output"] == 32 and r["cost_usd"] == 1.5
     assert r["wall_seconds"] == 66.0, r["wall_seconds"]
-    global fetch_pr
-    real, fetch_pr = fetch_pr, lambda repo, n: {"repo": repo, "number": n}
-    try:
-        with tempfile.NamedTemporaryFile("w", suffix=".jsonl") as f:
-            f.write("\n".join(ev(**l) for l in lines))
-            f.flush()
-            assert extract(f.name, True)["prs"] == [{"repo": "o/r", "number": 7}]  # not the failed create's PR 9
-    finally:
-        fetch_pr = real
+    assert r["prs"] == [{"repo": "o/r", "number": 7, "title": None, "body": None, "diff": None, "error": None}], r["prs"]  # not the failed create's PR 9
     print("self-check ok")
 
 
@@ -253,7 +239,6 @@ if __name__ == "__main__":
     ap.add_argument("--projects", default=DEFAULT_PROJECTS)
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--since", type=datetime.date.fromisoformat, help="skip transcripts last written before this date")
-    ap.add_argument("--limit", type=int, default=0, help="stop after this many sf sessions (newest first)")
     ap.add_argument("--no-gh", action="store_true", help="skip the gh lookup of PR title, body and diff")
     ap.add_argument("--force", action="store_true", help="rewrite records that already exist")
     ap.add_argument("--self-check", action="store_true")
@@ -261,4 +246,4 @@ if __name__ == "__main__":
     if a.self_check:
         self_check()
     else:
-        run(a.projects, a.out, a.since, a.limit, not a.no_gh, a.force)
+        run(a.projects, a.out, a.since, not a.no_gh, a.force)
