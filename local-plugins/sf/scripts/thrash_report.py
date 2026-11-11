@@ -28,7 +28,7 @@ def metrics(r):
     skills = r["why_sf"]["skills"]
     return {"session": r["session_id"], "start": r["start"], "skills": skills, "calls": len(calls), "failed": failed,
             "repeats": repeats, "per_slice": round(len(calls) / max(len(skills), 1), 1), "score": FAIL_WEIGHT * failed + repeats,
-            "top_repeat": rep[0] if rep else None}
+            "top_repeat": max(rep, key=lambda x: x["count"]) if rep else None}
 
 
 def load(records, limit):
@@ -59,6 +59,8 @@ def self_check():
                                          "why_sf": {"skills": skills}}
     a = metrics(r("a", [c(True), c(True), c(False), c(False)], [{"name": "Bash", "input": "x", "count": 3}], ["sf:plan", "sf:build"]))
     assert (a["failed"], a["repeats"], a["per_slice"], a["score"]) == (2, 2, 2.0, 8), a
+    m = metrics(r("m", [c(False)], [{"name": "A", "input": "x", "count": 2}, {"name": "B", "input": "y", "count": 5}], []))
+    assert m["top_repeat"]["name"] == "B", m
     p = metrics(r("p", [c(False)], [{"name": "Monitor", "input": "x", "count": 9}], []))
     assert p["repeats"] == 0 and p["top_repeat"] is None, p
     b = metrics(r("b", [c(False)], [], []))
