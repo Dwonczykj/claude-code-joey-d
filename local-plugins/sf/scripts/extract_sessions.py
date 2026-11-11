@@ -8,7 +8,7 @@ Reads <projects>/*/<session>.jsonl (default ~/.claude/projects), keeps a session
 `sf:` skill, ran in an sf checkout (cwd contains local-plugins/sf), or touched a build-room id
 (a `build-room/<id>` path in its cwd or a Bash command). Writes <out>/<session_id>.json (default
 ~/FyxerGh/build-room/sf-outer-loop/records). Records hold tool inputs, so keep them out of git:
-the default output is outside every repo. An existing record is skipped unless --force.
+the default output is outside every repo. An existing record is skipped unless --force or its transcript has grown since.
 
 Later slices (thrash metrics, judge, replay gate, doctor) read ONLY these records, never the
 transcripts, so a cloud move swaps only where this script reads from. Record format, version 1:
@@ -18,10 +18,11 @@ transcripts, so a cloud move swaps only where this script reads from. Record for
      "git_branch": str|null, "start": ISO str|null, "end": ISO str|null, "wall_seconds": float|null,
      "why_sf": {"skills": [str], "sf_cwd": bool, "rooms": [str]},
      "tool_calls": [{"name": str, "input": str (<=120 chars), "error": bool}],   # in call order
-     "repeated": [{"name": str, "input": str, "count": int}],   # identical call seen 2+ times
-     "retries": int,        # calls identical to an earlier call of the same session that errored
+     "repeated": [{"name": str, "input": str, "count": int}],   # identical call (whole input) seen 2+ times
+     "retries": int,        # calls identical (whole input) to an earlier call of the same session that errored
      "tokens": {"input": int, "output": int, "cache_read": int, "cache_write": int},
-     "cost_usd": float|null,   # the transcript's own total; null when it has none
+     "cost_usd": float|null,   # the transcript's own total, subagent models included; null when it has none
+                               # (tokens above are this transcript's main thread only)
      "prs": [{"repo": str, "number": int, "title": str|null, "body": str|null,
               "diff": str|null (<=200 KB), "error": str|null}]}   # only when the session ran `gh pr create`
 
@@ -42,7 +43,10 @@ import tempfile
 DEFAULT_OUT = os.path.expanduser("~/FyxerGh/build-room/sf-outer-loop/records")
 DEFAULT_PROJECTS = os.path.expanduser("~/.claude/projects")
 INPUT_KEYS = ("command", "skill", "file_path", "path", "pattern", "url", "description", "prompt", "query")
-ROOM_RE = re.compile(r"build-room/([\w.-]+)")
+COMMAND_RE = re.compile(r"<command-name>/?(sf:[\w-]+)")  # a slash command leaves no Skill tool call
+# real rooms only: not file names inside a repo's own build-room/ folder, and not the records dir
+ROOM_RE = re.compile(r"FyxerGh/build-room/([A-Za-z0-9][\w-]*)(?![\w.-]|/records)")
+SF_CWD_RE = re.compile(r"/local-plugins/sf(/|$)")
 PR_RE = re.compile(r"github\.com/([\w.-]+/[\w.-]+)/pull/(\d+)")
 DIFF_CAP = 200_000
 
@@ -88,7 +92,7 @@ def extract(path, use_gh=True):
            "retries": 0, "tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0},
            "cost_usd": None, "prs": []}
     why = rec["why_sf"]
-    calls, by_id, usage, pr_ids, prs = [], {}, {}, set(), {}
+    calls, keys, by_id, usage, pr_ids, prs = [], [], {}, {}, set(), {}
     stamps = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -102,14 +106,20 @@ def extract(path, use_gh=True):
                 stamps.append(d["timestamp"])
             if d.get("cwd"):
                 rec["cwd"] = rec["cwd"] or d["cwd"]
-                if "local-plugins/sf" in d["cwd"]:
+                if SF_CWD_RE.search(d["cwd"]):
                     why["sf_cwd"] = True
                 why["rooms"] += ROOM_RE.findall(d["cwd"])
             rec["git_branch"] = rec["git_branch"] or d.get("gitBranch")
             if d.get("type") == "cost-state":
                 rec["cost_usd"] = d.get("totalCostUSD", rec["cost_usd"])
             msg = d.get("message")
-            if not isinstance(msg, dict) or not isinstance(msg.get("content"), list):
+            if not isinstance(msg, dict):
+                continue
+            if d.get("type") == "user":
+                c = msg.get("content")
+                text = c if isinstance(c, str) else " ".join(b.get("text", "") for b in c if isinstance(b, dict)) if isinstance(c, list) else ""
+                why["skills"] += COMMAND_RE.findall(text)
+            if not isinstance(msg.get("content"), list):
                 continue
             if d.get("type") == "assistant" and isinstance(msg.get("usage"), dict):
                 usage[msg.get("id") or d.get("uuid")] = msg["usage"]  # one message can span several lines
@@ -120,6 +130,7 @@ def extract(path, use_gh=True):
                     inp = b.get("input")
                     call = {"name": b.get("name", ""), "input": short_input(inp), "error": False}
                     calls.append(call)
+                    keys.append(json.dumps(inp, sort_keys=True))  # identical means the whole input, not the shown prefix
                     by_id[b.get("id")] = call
                     if call["name"] == "Skill" and call["input"].startswith("sf:"):
                         why["skills"].append(call["input"])
@@ -132,7 +143,7 @@ def extract(path, use_gh=True):
                     call = by_id.get(b.get("tool_use_id"))
                     if call and b.get("is_error"):
                         call["error"] = True
-                    if b.get("tool_use_id") in pr_ids:
+                    if b.get("tool_use_id") in pr_ids and not b.get("is_error"):  # a failed create names a PR that already existed
                         for repo, n in PR_RE.findall(result_text(b)):
                             prs[(repo, int(n))] = None
     why["skills"] = sorted(set(why["skills"]))
@@ -141,14 +152,16 @@ def extract(path, use_gh=True):
         return None
     rec["tool_calls"] = calls
     seen, errored = collections.Counter(), set()
-    for c in calls:
-        key = (c["name"], c["input"])
+    shown = {}
+    for c, k in zip(calls, keys):
+        key = (c["name"], k)
+        shown[key] = c["input"]
         if key in errored:
             rec["retries"] += 1
         seen[key] += 1
         if c["error"]:
             errored.add(key)
-    rec["repeated"] = [{"name": n, "input": i, "count": k} for (n, i), k in seen.most_common() if k > 1]
+    rec["repeated"] = [{"name": key[0], "input": shown[key], "count": n} for key, n in seen.most_common() if n > 1]
     for u in usage.values():
         t = rec["tokens"]
         t["input"] += u.get("input_tokens") or 0
@@ -174,13 +187,14 @@ def run(projects, out, since, limit, use_gh, force):
         if since and datetime.date.fromtimestamp(os.path.getmtime(path)) < since:
             break  # newest first, so every later file is older too
         dest = os.path.join(out, os.path.basename(path)[:-6] + ".json")
-        if os.path.exists(dest) and not force:
+        if os.path.exists(dest) and not force and os.path.getmtime(dest) >= os.path.getmtime(path):  # a live session is redone
             kept += 1
             continue
         rec = extract(path, use_gh)
         if rec:
-            with open(dest, "w", encoding="utf-8") as f:
+            with open(dest + ".tmp", "w", encoding="utf-8") as f:
                 json.dump(rec, f, indent=1)
+            os.replace(dest + ".tmp", dest)
             kept += 1
     print(f"{kept} sf sessions in {out}")
 
@@ -197,6 +211,11 @@ def self_check():
              use(2, "Bash", {"command": "pnpm test"}), res(2, True),
              use(3, "Bash", {"command": "pnpm test"}), res(3, False),
              use(4, "Bash", {"command": "gh pr create --draft"}), res(4, False, "https://github.com/o/r/pull/7"),
+             use(5, "Bash", {"command": "gh pr create --draft"}), res(5, True, "https://github.com/o/r/pull/9"),
+             use(6, "Edit", {"file_path": "/a", "old_string": "x"}), res(6, False),
+             use(7, "Edit", {"file_path": "/a", "old_string": "y"}), res(7, False),
+             use(7, "Bash", {"command": "ls /Users/j/FyxerGh/build-room/sf-outer-loop/records"}),
+             use(8, "Bash", {"command": "ls /Users/j/FyxerGh/build-room/my-room --x; ls /r/build-room/public"}),
              {"type": "cost-state", "totalCostUSD": 1.5}]
     with tempfile.TemporaryDirectory() as tmp:
         proj = os.path.join(tmp, "p")
@@ -205,16 +224,27 @@ def self_check():
             f.write("\n".join(ev(**l) for l in lines) + "\nnot json\n")
         with open(os.path.join(proj, "other.jsonl"), "w") as f:
             f.write(ev(type="user", cwd="/elsewhere", message={"content": "hi"}) + "\n")
+        with open(os.path.join(proj, "slash.jsonl"), "w") as f:  # only trigger: a typed slash command
+            f.write(ev(type="user", cwd="/elsewhere", message={"content": "<command-name>/sf:room</command-name>"}) + "\n")
         out = os.path.join(tmp, "out")
         run(tmp, out, None, 0, False, False)
-        assert os.listdir(out) == ["sess1.json"], os.listdir(out)
+        assert sorted(os.listdir(out)) == ["sess1.json", "slash.json"], os.listdir(out)
+        assert json.load(open(os.path.join(out, "slash.json")))["why_sf"]["skills"] == ["sf:room"]
         r = json.load(open(os.path.join(out, "sess1.json")))
-    assert r["why_sf"] == {"skills": ["sf:plan"], "sf_cwd": True, "rooms": []}, r["why_sf"]
-    assert [(c["name"], c["error"]) for c in r["tool_calls"]] == [("Skill", False), ("Bash", True), ("Bash", False), ("Bash", False)]
-    assert r["repeated"] == [{"name": "Bash", "input": "pnpm test", "count": 2}] and r["retries"] == 1
-    assert r["tokens"]["input"] == 12 and r["tokens"]["output"] == 16 and r["cost_usd"] == 1.5
-    assert r["wall_seconds"] == 63.0, r["wall_seconds"]
-    assert PR_RE.findall("see https://github.com/o/r/pull/7") == [("o/r", "7")]
+    assert r["why_sf"] == {"skills": ["sf:plan"], "sf_cwd": True, "rooms": ["my-room"]}, r["why_sf"]
+    assert [(c["name"], c["error"]) for c in r["tool_calls"]] [:4] == [("Skill", False), ("Bash", True), ("Bash", False), ("Bash", False)]
+    assert r["repeated"] == [{"name": "Bash", "input": "pnpm test", "count": 2}, {"name": "Bash", "input": "gh pr create --draft", "count": 2}]  # the two Edits differ, so are not repeats and r["retries"] == 1
+    assert r["tokens"]["input"] == 24 and r["tokens"]["output"] == 32 and r["cost_usd"] == 1.5
+    assert r["wall_seconds"] == 66.0, r["wall_seconds"]
+    global fetch_pr
+    real, fetch_pr = fetch_pr, lambda repo, n: {"repo": repo, "number": n}
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl") as f:
+            f.write("\n".join(ev(**l) for l in lines))
+            f.flush()
+            assert extract(f.name, True)["prs"] == [{"repo": "o/r", "number": 7}]  # not the failed create's PR 9
+    finally:
+        fetch_pr = real
     print("self-check ok")
 
 
