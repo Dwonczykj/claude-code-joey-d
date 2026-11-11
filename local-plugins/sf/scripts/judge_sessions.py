@@ -132,7 +132,7 @@ def ask(g, text):
                         "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence"],
                        input=text, capture_output=True, text=True, timeout=300)
     if p.returncode:
-        raise OSError("claude -p exit %d: %s" % (p.returncode, p.stderr.strip()[:200]))
+        raise OSError("claude -p exit %d: %s" % (p.returncode, (p.stderr or p.stdout).strip()[:200]))
     return parse_reply(p.stdout)
 
 
