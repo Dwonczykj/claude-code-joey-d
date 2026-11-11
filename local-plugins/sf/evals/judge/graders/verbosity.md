@@ -2,7 +2,6 @@
 type: llm
 weight: 1
 model: claude-sonnet-5-5
-temperature: 0
 ---
 
 You judge the VERBOSITY of a pull request description written by a coding agent. Score how much of the

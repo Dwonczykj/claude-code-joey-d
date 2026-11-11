@@ -11,24 +11,22 @@ of its PRs, but the labelled sample takes one-PR sessions only, so it leans to s
 format). They are frozen: change one only by re-running `agree` against Joey's labels and re-freezing by hand,
 never through the doctor or the replay gate.
 
-`judge` sends PR text to Anthropic with the prod read-only key only (provider-keys rule). Load it first:
-    set -a; source <web-app>/workbench/.env.prod.RO; set +a
+`judge` runs each call through headless Claude Code (`claude -p`, no tools, no settings, no MCP) on the
+grader's pinned model; Joey chose this route for R7. The CLI has no temperature flag, so reruns can differ a little.
 Labels and judge outputs stay in the state dir, never in git.
 """
 import argparse
-import base64
 import glob
 import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
-import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GRADERS = os.path.join(HERE, "..", "evals", "judge", "graders")
 STATE = os.path.expanduser("~/FyxerGh/build-room/sf-outer-loop")
-API = "https://api.anthropic.com/v1/messages"  # pinned: never a host-set ANTHROPIC_BASE_URL
 ANCHORS = (0.0, 0.25, 0.5, 0.75, 1.0)
 METRICS = ("verbosity", "redundant_tests")
 TEST_RE = re.compile(r"(^|/)(test_[^/]*|[^/]*[._-](test|spec)\.\w+)$|__tests__/|(^|/)tests?/")
@@ -40,7 +38,7 @@ def grader(metric):
     text = open(path, encoding="utf-8").read()
     head, body = text.split("---\n", 2)[1:]
     meta = dict(l.split(": ", 1) for l in head.strip().splitlines())
-    return {"model": meta["model"], "temperature": float(meta["temperature"]), "rubric": body.strip(),
+    return {"model": meta["model"], "rubric": body.strip(),
             "sha": hashlib.sha256(text.encode()).hexdigest()[:12]}
 
 
@@ -129,27 +127,13 @@ def filled(labels):
     return {u: l for u, l in labels.items() if all(k in l for k in METRICS)}
 
 
-def api_key():
-    v = os.environ.get("ANTHROPIC_CREDENTIALS")
-    if not v:
-        sys.exit("ANTHROPIC_CREDENTIALS not set: source the prod RO env file first (see --help)")
-    try:
-        v = base64.b64decode(v).decode()
-    except ValueError:
-        pass
-    try:
-        return json.loads(v)["apiKey"]
-    except (ValueError, KeyError, TypeError):
-        return v
-
-
-def ask(g, text, key):
-    req = {"model": g["model"], "max_tokens": 200, "temperature": g["temperature"], "system": g["rubric"],
-           "messages": [{"role": "user", "content": text}]}
-    r = urllib.request.Request(API, json.dumps(req).encode(), {"x-api-key": key, "anthropic-version": "2023-06-01",
-                                                              "content-type": "application/json"})
-    with urllib.request.urlopen(r, timeout=120) as resp:
-        return parse_reply(json.load(resp)["content"][0]["text"])
+def ask(g, text):
+    p = subprocess.run(["claude", "-p", "--model", g["model"], "--system-prompt", g["rubric"], "--tools", "",
+                        "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence"],
+                       input=text, capture_output=True, text=True, timeout=300)
+    if p.returncode:
+        raise OSError("claude -p exit %d: %s" % (p.returncode, p.stderr.strip()[:200]))
+    return parse_reply(p.stdout)
 
 
 def parse_reply(text):
@@ -164,7 +148,7 @@ def judge(records, state):
         sys.exit("no %s: run `sheet` first" % sheet)
     on_sheet = read_sheet(sheet)
     items = [c for c in candidates(records) if c["url"] in on_sheet]
-    key, gs = api_key(), {m: grader(m) for m in METRICS}
+    gs = {m: grader(m) for m in METRICS}
     path = os.path.join(state, "labels", "judge.jsonl")
     done = set(latest_rows(path, gs))
     with open(path, "a", encoding="utf-8") as f:
@@ -175,12 +159,12 @@ def judge(records, state):
             try:
                 for m, text in (("verbosity", c["body"] or "(empty PR body)"),
                                 ("redundant_tests", c["tests"] or "(no test files in the diff)")):
-                    row[m], row[m + "_why"] = ask(gs[m], text, key)
+                    row[m], row[m + "_why"] = ask(gs[m], text)
                     row[m + "_rubric"] = gs[m]["sha"]
             except (OSError, ValueError, KeyError, IndexError) as e:  # one bad PR must not stop the run; rerun retries it
                 print(c["url"], "failed:", e, file=sys.stderr)
                 continue
-            row["model"], row["temperature"] = gs["verbosity"]["model"], gs["verbosity"]["temperature"]
+            row["model"] = gs["verbosity"]["model"]
             f.write(json.dumps(row) + "\n")
             print(row["url"], row["verbosity"], row["redundant_tests"])
 
@@ -211,8 +195,7 @@ def agree(state):
     latest = latest_rows(os.path.join(state, "labels", "judge.jsonl"), {m: grader(m) for m in METRICS})
     rows = [(labels[u], latest[u]) for u in labels if u in latest]
     out = ["# Judge agreement with Joey's labels", "",
-           "%d PRs labelled and judged. Model %s, temperature %s." % (len(rows), *(
-               (rows[0][1]["model"], rows[0][1]["temperature"]) if rows else ("-", "-"))), "",
+           "%d PRs labelled and judged. Model %s via claude -p." % (len(rows), rows[0][1]["model"] if rows else "-"), "",
            "| rubric | rubric sha | n | mean abs error | within 0.25 | na mismatches |", "|---|---|---|---|---|---|"]
     for m in METRICS:
         n, mae, w, na = agreement([(l[m], j[m]) for l, j in rows])
@@ -254,7 +237,7 @@ def self_check():
         assert read_sheet(p) == {"https://github.com/o/r/pull/1": {"session_id": "s1", "verbosity": 0.5, "redundant_tests": None}}
     for m in METRICS:
         g = grader(m)
-        assert g["model"] == "claude-sonnet-5-5" and g["temperature"] == 0 and "0.25:" in g["rubric"]
+        assert g["model"] == "claude-sonnet-5-5" and "0.25:" in g["rubric"]
     assert pick([{"session_id": str(i), "tests": "x" * i} for i in range(10)], 3)[1]["session_id"] == "4"
     print("self-check ok")
 

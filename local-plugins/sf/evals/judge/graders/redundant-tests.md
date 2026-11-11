@@ -2,7 +2,6 @@
 type: llm
 weight: 1
 model: claude-sonnet-5-5
-temperature: 0
 ---
 
 You judge REDUNDANT TESTS in the test-file hunks of a pull request written by a coding agent. A test is
