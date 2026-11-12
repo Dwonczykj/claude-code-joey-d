@@ -12,7 +12,7 @@ Run commands from `local-plugins/sf`. All data comes from extractor records (`sc
 
 ## Hard limits
 
-- Edit only files under `skills/` (and `commands/` is out too: `open-pr` rejects anything outside `skills/`). Never edit `evals/` (rubrics, held-out set), `scripts/judge_sessions.py` or `scripts/replay_gate.py`. Rubric or judge-model changes go through Joey's hand labels, not here.
+- Edit only files under `skills/` (`open-pr` rejects anything else, `commands/` included). Never edit `evals/` (rubrics, held-out set), `scripts/judge_sessions.py` or `scripts/replay_gate.py`. Rubric or judge-model changes go through Joey's hand labels, not here.
 - Never learn from a held-out task. `doctor.py` skips them and `open-pr` refuses them; do not work around it.
 - Do not run this on a new class of session (for example the custom-integrations orchestrator sessions) until Joey says its rubric exists.
 
