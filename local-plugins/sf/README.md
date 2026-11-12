@@ -132,7 +132,17 @@ Each kind of outside tool has one skill that knows the vendors; everything else 
 | `check-ui` | Claude in Chrome, the built-in browser pane, Playwright MCP | the gate notes that UI was not checked |
 | `build-route` | the Fyxer factory (a cloud session on your Routine builds a Linear ticket, opens the PR and merges it once its gate passes), offered at each slice's build start | building locally, recommended when the slice needs local access, scores high, waits on an open PR, looks contested, or the repo has no factory |
 
-Checks: `python3 skills/review-seat/scripts/seats_test.py`, `python3 scripts/room_test.py`, `python3 scripts/roomui_test.py`, `python3 scripts/docs_test.py` and `node scripts/build_verify_slice_test.mjs`.
+Checks: `python3 skills/review-seat/scripts/seats_test.py`, `python3 scripts/room_test.py`, `python3 scripts/roomui_test.py`, `python3 scripts/docs_test.py`, `python3 scripts/replay_gate.py --self-check` and `node scripts/build_verify_slice_test.mjs`.
+
+## Replay gate
+
+`scripts/replay_gate.py` answers "did this change to sf make it better?" on a frozen set of 10 past PRs (`evals/replay/held-out.json`, picked once from extractor records; `pick` refuses to overwrite it). Each task gives the agent a merged PR's title and diff and asks for the PR description. It is not a rebuild of the PR. Each task is one `claude plugin eval` case on one pinned model (`claude-sonnet-5-5`, agent and graders), with `--ablation with-without` so the no-plugin arm shows run-to-run noise. Two graders per task: does the text cover the real PR's what, why and test, and the judge's verbosity rubric (read from `evals/judge/graders/`, never changed here).
+
+```bash
+python3 scripts/replay_gate.py run --before main   # sf at main vs the working tree, same tasks
+```
+
+It prints a per-task and total table, then PASS (no task worse, total up by at least 0.10; one run of identical sf on both sides moved the total +0.08 by noise) or FAIL, and exits 0 or 1. Cases are built at run time from extractor records inside a temp copy of the plugin, so no PR text is committed. The doctor must skip any PR listed in `held-out.json` (`python3 scripts/replay_gate.py held-out REPO NUMBER` exits 0 when listed). Rubric or judge-model changes never go through this gate: re-check them against Joey's hand labels.
 
 ## Edit
 

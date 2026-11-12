@@ -72,13 +72,17 @@ def candidates(records):
             continue
         seen.add(key)
         out.append({"session_id": r["session_id"], "repo": p["repo"], "number": p["number"],
-                    "url": "https://github.com/%s/pull/%d" % key, "body": p["body"] or "", "tests": test_hunks(p["diff"])})
+                    "url": "https://github.com/%s/pull/%d" % key, "title": p["title"], "body": p["body"] or "", "diff": p["diff"], "tests": test_hunks(p["diff"])})
     return out
 
 
 def pick(cands, n):
     """Evenly spaced over test-hunk size, so the sample runs from no tests to many."""
-    cands = sorted(cands, key=lambda c: (len(c["tests"]), c["session_id"]))
+    return pick_even(sorted(cands, key=lambda c: (len(c["tests"]), c["session_id"])), n)
+
+
+def pick_even(cands, n):
+    """n items evenly spaced over an already sorted list."""
     if len(cands) <= n:
         return cands
     return [cands[round(i * (len(cands) - 1) / (n - 1))] for i in range(n)]
