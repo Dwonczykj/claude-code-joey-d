@@ -1,0 +1,62 @@
+[
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 15258,
+  "session_id": "eccdaba1-2327-4959-a89c-c4f057b196d9",
+  "title": "fix: Name the integration rules section for every rule"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 15459,
+  "session_id": "649b997f-3cd2-4625-bf1e-c55b399fbb61",
+  "title": "fix: Keep the asker on QUERY items parsed from documents"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 15180,
+  "session_id": "10a36fb9-f6b9-4925-af55-f97307443a8c",
+  "title": "fix: Keep the memory expiry bucket test stable across clock changes"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 11971,
+  "session_id": "d6863e21-ca8e-46a8-b3a8-17ad5f94f35e",
+  "title": "feat: Sync diarization-eval playback with video, progress bar, and transcript highlight"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 15474,
+  "session_id": "4d46054b-dcfe-483d-9f89-0df3659fb76d",
+  "title": "chore: Move proposed-times extraction to gpt-6-luna medium"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 12843,
+  "session_id": "1e1b7da8-b424-473b-8dca-98c4e5f431e2",
+  "title": "feat: add model-training opt-out toggle to account settings"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 14355,
+  "session_id": "50540840-b966-4f13-b349-e29e532acd88",
+  "title": "fix: Show one suggested rule per sender and make decisions stick"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 16853,
+  "session_id": "af199c4a-bc5e-4acd-9b54-559a89922df7",
+  "title": "feat: Email a client's admins when an integration is shared or first approved"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 14826,
+  "session_id": "edb2effb-6005-441e-9139-8eb1d6ab605e",
+  "title": "feat: Resend failed custom integration deliveries (PRE-3286)"
+ },
+ {
+  "repo": "Fyxer-AI/web-app",
+  "number": 15088,
+  "session_id": "719caba3-7f5e-4810-ac9f-aef6a946c88a",
+  "title": "chore: Move custom-integration-factory onto collection capabilities"
+ }
+]
