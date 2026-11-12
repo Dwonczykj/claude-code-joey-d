@@ -60,6 +60,7 @@ Each room lives in `~/FyxerGh/build-room/<slug>/`. Each file has one writer, enf
 | `adopt` | orchestrator | adds another run to the room as a feature, by reference |
 | `refresh` | orchestrator | copies adopted runs' tickets onto this room's board, never writing to those runs |
 | `prs` | orchestrator, the mod, the Room UI's Refresh | reads every PR the tickets name from GitHub into `prs.json` |
+| `link-pr` | the `pr-opened` hook | sets a ticket's `pr` and `prUrl` to the PR its session just opened |
 | `withdraw` | orchestrator, or the asking session | closes a question card that is stale or was answered outside the room (Joey answered in the asking session), with the reason; every reader treats it as answered |
 | `inbox` | orchestrator | prints the cards opened since a cursor for the orchestrator's own session, and a line for each card shown earlier that has since closed elsewhere; ends with `cursor <n>` |
 | `reopen` | the Room UI (Joey's Undo) | undoes an answer: re-asks the question as a new open `question` event with `reopens: <old id>`, once per question |
