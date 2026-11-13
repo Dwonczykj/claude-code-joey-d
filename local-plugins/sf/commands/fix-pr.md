@@ -1,5 +1,5 @@
 ---
-description: "Greenify a PR: turns on Auto-fix, runs a two-seat review (and Qodo's CLI on Qodo PRs) before each push around fix-bot-comments, and loops with stricter rounds until green with no open Qodo High or Medium."
+description: "Greenify a PR: turns on Auto-fix, runs a two-seat review (and Qodo's CLI on Qodo PRs) before each push around fix-bot-comments, and loops with stricter rounds until green with no open Qodo High or Medium (declines go to Joey), and opens one replacement PR if Qodo goes stale."
 ---
 Drive an open PR to fully green with fewer commit→wait-for-bot round-trips, by reviewing the diff with independent models *before* each push instead of only reacting to bot comments after.
 
@@ -28,7 +28,7 @@ Target PR: the arg ($ARGUMENTS), else the PR for the current branch (`gh pr view
 
    The prompt asks each seat to find the correctness bugs, unhandled cases, and reuse/simplification issues Cursor Bugbot / Codex-connector would flag, and to end with a verdict line; `review-seat` appends the read-only fence. On later rounds re-run both fresh against the updated diff.
 
-   Reconcile: raised by **both** → treat as real; raised by **one** → verify against the code yourself before acting (models are reviewers, not oracles — same discipline as `fix-bot-comments`). Then apply the Phase 3 decision rule from `fix-bot-comments` (redesign in scope > fix if the trade-off is worth it > decline), fix the real ones, commit, and push once — so the diff the bots see is already addressed.
+   Reconcile: raised by **both** → treat as real; raised by **one** → verify against the code yourself before acting (models are reviewers, not oracles — same discipline as `fix-bot-comments`). Then apply the Phase 3 decision rule from `fix-bot-comments` (for a Qodo **High or Medium** finding, only the first two outcomes are yours to take alone: redesign so the issue goes away, or fix. Declining one is my call, see the Judgement rule) (redesign in scope > fix if the trade-off is worth it > decline), fix the real ones, commit, and push once — so the diff the bots see is already addressed.
 
    **Qodo pre-push check (Qodo PRs only).** After committing and before pushing, run the local Qodo reviewer, the same engine as the PR bot, exactly as `pre-pr-gate` Pass E sets out (probe `command -v qodo` and `qodo read whoami --json`; `--base origin/<baseRef>`; context on stdin; nothing written inside the worktree; long timeout or background). Don't push while it reports an introduced or still-open **High or Medium** finding that you haven't either fixed or refuted against the code (a finding with no severity counts as Medium). Low findings follow the normal decision rule. Fix, commit, re-run (it is incremental), repeat. If the CLI is missing, logged out or errors (`repo_not_connected`, `closed_preview`, rate limit), quote the reason, push anyway, and rely on the post-push check in step 5.
 
@@ -46,6 +46,8 @@ Target PR: the arg ($ARGUMENTS), else the PR for the current branch (`gh pr view
 
    On a Qodo PR, also wait for Qodo's review of the latest push: it edits one "Code Review by Qodo" comment per commit, grouping issues under High / Medium / Low badges and striking through resolved ones. The PR is not done while that comment lists an unresolved **High or Medium** issue, unless you refuted it against the code and replied on its thread with the evidence (never hand-resolve a Qodo thread; Qodo marks that "Dismissed"). Each unresolved one sends you round the loop again.
 
+   **Stale Qodo check, replacement PR.** Qodo is stale when it has not posted or updated its "Code Review by Qodo" comment for the latest pushed commit 20 minutes after that push, with no Qodo failure it explained (rate limit, `closed_preview` and similar count as an explained failure: quote it and ask me). Before acting, look for a marker comment `Qodo replacement: <old PR> -> <new PR>` on this PR, on its head branch's earlier PRs, and in `progress.md` if there is one. If none exists, this PR has not been replaced yet: push the same head to a fresh branch name (`<branch>-qodo`), open a replacement PR with the same base, title and body plus a line naming the old PR, post the marker comment on both, close the old PR (never merge or delete anything), move Auto-fix to the new PR, and carry on the loop there. If a marker already exists, never open a second replacement: tell me the Qodo check is stale on the replacement too and ask what to do.
+
 ## Escalating rounds
 
 A round is one push. Every extra round costs a full bot pass, so each round past the second is stricter than the last. Count rounds from this command's first push and say the round number in each status line.
@@ -54,8 +56,10 @@ A round is one push. Every extra round costs a full bot pass, so each round past
 - **Round 3:** add seat 2 to the pre-push review (the full three-seat panel), and run Qodo with `--full` once so it re-reviews the whole diff, not only what changed.
 - **Round 4:** before touching code, write down, per finding still open, why the last fix didn't hold. A finding that came back, or a new finding on lines you just changed, means patching is the wrong move: redesign that part (Phase 3, option 1) instead of adding another guard.
 - **Round 5:** send the findings still open to `discussion-room` for redesign options and a recommendation, apply the one it picks, and push only once all three seats and Qodo pass the diff.
-- **Round 6 and on:** show me each finding still open, what was tried, and the options, and ask, then carry on with my answer. Round count alone never ends the loop; it ends only at the green gate.
+- **Round 6 and on:** (Qodo High and Medium findings already come to me at every round.) Show me each finding still open, what was tried, and the options, and ask, then carry on with my answer. Round count alone never ends the loop; it ends only at the green gate.
 
 ## Judgement rule
+
+**Qodo High and Medium findings.** Never decline, defer or hand-wave one without asking me, at any round. If the finding is real and you can resolve it by making the code more explicit (a clearer name, type, early return, or comment) without adding a branch, guard, option or helper, do that without asking. Otherwise, when the fix would add real complexity, or you think it isn't an issue, show me the finding, your evidence and the trade-off, and wait for my answer. Record my decline in the "Too-long - did not fix" comment, reply on the Qodo thread with the evidence, and do not hand-resolve it. The Qodo gate in step 5 stays open until Qodo clears it or I have approved the decline.
 
 When you're unsure whether a real finding is worth fixing — the fix adds more code/complexity than this PR warrants — don't silently fix and don't silently skip. Show me the finding and the trade-off and ask, then record the decline in the "Too-long — did not fix" comment if we skip it. Escalate genuinely contested or out-of-diff calls to `discussion-room` for options + a recommendation. Update `progress.md` if this is part of a factory run.
