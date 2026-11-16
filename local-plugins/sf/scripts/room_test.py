@@ -679,7 +679,13 @@ with tempfile.TemporaryDirectory() as root:
     # 101 merges: the next one up is 102 and 103, and 102 is no longer indented
     fx["view"]["acme/app#101"].update(state="MERGED", mergedAt="2026-10-04T10:00:00Z", mergedBy={"login": "bob"})
     write(fixture, json.dumps(fx))
+    seen = len(evs(d))
     prs_run()
+    merged_ev = [e for e in evs(d)[seen:] if e["type"] == "state"]
+    assert [e["note"].split()[0] for e in merged_ev] == ["MERGED"] and merged_ev[0]["note"].startswith("MERGED #101"), merged_ev
+    seen = len(evs(d))
+    prs_run()
+    assert not [e for e in evs(d)[seen:] if e["type"] == "state"], "a merge is logged once"
     by = {e["number"]: e for e in prs_doc()["prs"]}
     assert by[102]["next"] and by[102]["order"] == 1 and by[102]["depth"] == 0 and by[101]["order"] is None
     assert [e["number"] for e in prs_doc()["prs"]][-2:] == [101, 99]  # merged, newest first

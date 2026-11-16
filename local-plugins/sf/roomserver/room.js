@@ -910,7 +910,7 @@ const renderSide = (run, route) => {
   const cards = [
     ...here.flatMap((r) => openQuestions(r).map((q) => questionCard(r, q, false))),
     ...here.flatMap((r) => ticketsOf(r).filter((t) => t.needs?.length && t.state === "NOT STARTED").map((t) => macCard(r, t, false))),
-    ...here.flatMap((r) => ticketsOf(r).filter((t) => t.state === "DONE" && t.pr).map((t) => mergeCard(r, t, false))),
+    ...here.flatMap((r) => ticketsOf(r).filter((t) => t.state === "DONE" && t.pr && !["MERGED", "CLOSED"].includes(prFor(r, t)?.state)).map((t) => mergeCard(r, t, false))),
   ];
   const elsewhere = [...store.runs.values()].filter((r) => r !== run).map((r) => ({ id: r.id, n: openQuestions(r).length })).filter((r) => r.n);
   const others = elsewhere.length ? `<div style="margin-top:6px">${elsewhereLine(run)}</div>` : "";

@@ -20,7 +20,8 @@
            have since closed in the Room UI or by a withdrawal (orchestrator)
   reopen   undo Joey's answer: re-ask the question as a new open card with `reopens` set (the Room UI's Undo)
   prs      read each ticket's PR from GitHub with `gh` (read-only) into prs.json, its only writer, with the merge
-           order of the unmerged ones; log a `ci` event when a PR's state, CI, review or mergeable state changes
+           order of the unmerged ones; log a `ci` event when a PR's state, CI, review or mergeable state changes,
+           and a `state MERGED` event the first time it reads a PR as merged
 
 Every session writes events through this, never with an editor or a shell redirect, so each line
 parses and carries a sequence id the orchestrator's ledger uses as its cursor. Only signoffs.jsonl
@@ -1161,6 +1162,9 @@ def check_prs(d):
         e["ready"] = is_ready(e)
         if b.get("ci") and not e["readOnly"] and pr_signature(b) != pr_signature(e):
             event(d, t["id"], "github", "ci", f"#{e['number']} {pr_signature(e)}"[:MAX_NOTE])
+            logged += 1
+        if e["state"] == "MERGED" and b.get("state") != "MERGED" and not e["readOnly"] and t.get("state") != "MERGED":
+            event(d, t["id"], "github", "state", f"MERGED #{e['number']} merged on GitHub")  # the orchestrator folds it into tickets.json
             logged += 1
         entries.append(e)
     errors = list(dict.fromkeys(errors))
