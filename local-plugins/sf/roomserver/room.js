@@ -565,10 +565,12 @@ const treeNode = (run, t) => {
   const look = lookOf(t, e);
   const ci = e?.state === "OPEN" ? e.ci ?? {} : {};
   const total = (ci.passed ?? 0) + (ci.failed ?? 0) + (ci.running ?? 0);
-  const ring = ci.running ? `<span class="tn-ring" style="--done:${Math.round((100 * (total - ci.running)) / total)}%"></span>` : "";
+  // A failed check outranks running ones: the PR can't merge as it stands, whatever the rest do
+  const ring = ci.failed ? `<span class="tn-ring fail"></span>`
+    : ci.running ? `<span class="tn-ring" style="--done:${Math.round((100 * (total - ci.running)) / total)}%"></span>` : "";
   const inner = glyph(look) || `<span class="tn-text">${look === "draft" ? "D" : h(clip(t.title, 34))}</span>`;
   const link = e ? `href="${h(webUrl(e.url))}" target="_blank" rel="noopener"` : `href="#ticket/${encodeURIComponent(t.id)}"`;
-  const label = `${e ? `#${e.number}` : t.id} ${t.title}: ${LOOK_WORD[look]}${ci.running ? ", CI running" : ""}`;
+  const label = `${e ? `#${e.number}` : t.id} ${t.title}: ${LOOK_WORD[look]}${ci.failed ? `, ${plural(ci.failed, "check")} failing` : ci.running ? ", CI running" : ""}`;
   return `<a class="tn tn-${look}" ${link} data-node="${h(run.id)}|${h(t.id)}" aria-label="${h(label)}">${ring}${inner}</a>
     <span class="tn-name">${h(t.title)}</span><span class="tn-meta">${h(e ? `#${e.number}` : t.id)}</span>`;
 };
@@ -591,7 +593,8 @@ const treeView = (run) => {
   const parts = ["merged", "approved", "open", "conflict", "draft", "unbuilt"].map((l) => [l, active.filter((x) => x === l).length]).filter(([, n]) => n);
   const bar = parts.map(([l, n]) => `<span style="flex:${n};background:${LOOK_COLOUR[l]}" title="${n} ${LOOK_WORD[l].toLowerCase()}"></span>`).join("");
   const keyItem = (l, extra = "", text = LOOK_WORD[l]) => `<span class="tree-key"><span class="tn tn-mini tn-${l}">${extra}${glyph(l) || `<span class="tn-text">${l === "draft" ? "D" : ""}</span>`}</span>${text}</span>`;
-  const keys = Object.keys(LOOK_WORD).map((l) => keyItem(l)).join("") + keyItem("approved", `<span class="tn-ring" style="--done:60%"></span>`, "CI running: the gold ring fills as checks finish");
+  const keys = Object.keys(LOOK_WORD).map((l) => keyItem(l)).join("") + keyItem("approved", `<span class="tn-ring" style="--done:60%"></span>`, "CI running: the gold ring fills as checks finish")
+    + keyItem("open", `<span class="tn-ring fail"></span>`, "CI failing");
   const outline = store.treeOutline || NARROW.matches;
   const busy = store.checking.has(run.id);
   return `${staleBanner(run)}<section class="stage" style="margin-top:0">

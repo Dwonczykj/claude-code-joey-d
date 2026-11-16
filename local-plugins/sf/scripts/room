@@ -972,6 +972,12 @@ def fetch_pr(repo, number):
             behind = None  # a deleted head or a fork: the rest of the PR still counts
     linear = LINEAR_URL.search(p.get("body") or "")
     qodo = qodo_review(repo, number)
+    if p.get("state") == "OPEN" and (p.get("mergeable") or "UNKNOWN") == "UNKNOWN":
+        # GitHub works out mergeability only when first asked and answers UNKNOWN meanwhile; the calls above give it time
+        try:
+            p["mergeable"] = gh("pr", "view", str(number), "--repo", repo, "--json", "mergeable", "--jq", ".mergeable").strip()
+        except GhError:
+            pass
     if qodo is not None:  # Qodo approves as a bot review; a push dismisses it, so only APPROVED counts
         qodo["approved"] = any((r.get("author") or {}).get("login", "").startswith("qodo") and r.get("state") == "APPROVED"
                                for r in p.get("latestReviews") or [])
@@ -1285,11 +1291,11 @@ def print_tree(d):
             e, look = pr_of(t), looks[t["id"]]
             word = TREE_WORD[look]
             ci = (e or {}).get("ci") or {}
-            if (e or {}).get("state") == "OPEN" and ci.get("running"):
-                total = ci.get("passed", 0) + ci.get("failed", 0) + ci["running"]
-                word += f", CI running ({total - ci['running']} of {total} checks done)"
-            elif (e or {}).get("state") == "OPEN" and ci.get("failed"):
+            if (e or {}).get("state") == "OPEN" and ci.get("failed"):
                 word += f", {ci['failed']} {'check' if ci['failed'] == 1 else 'checks'} failing"
+            elif (e or {}).get("state") == "OPEN" and ci.get("running"):
+                total = ci.get("passed", 0) + ci["running"]
+                word += f", CI running ({total - ci['running']} of {total} checks done)"
             pr = f"[#{e['number']}]({e['url']}) " if e and e.get("url") else f"#{t['pr']} " if t.get("pr") else ""
             lin = t.get("linearIssue") or t.get("linear")
             lin = f" ([{lin}](https://linear.app/{workspace}/issue/{lin}))" if lin and workspace else f" ({lin})" if lin else ""
