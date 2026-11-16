@@ -71,6 +71,7 @@ const store = {
   sheet: false, // the Board's inbox sheet is open
   revealed: null, // the open stage tile last scrolled into view
   treeOutline: storage.get("build-room-tree") === "outline", // the Tree tab draws an indented outline, not a top-down tree
+  treeCam: new Map(), // run id -> the tree canvas's pan and zoom, { x, y, k }
 };
 
 // ---------------------------------------------------------------- derived
@@ -597,6 +598,9 @@ const treeView = (run) => {
     + keyItem("open", `<span class="tn-ring fail"></span>`, "CI failing");
   const outline = store.treeOutline || NARROW.matches;
   const busy = store.checking.has(run.id);
+  // A div, not a nav: the page's nav rule (the tab bar's padding and grey) would style the tree and pad its node links
+  const tree = (cls) => `<div class="${cls}" role="group" aria-label="Slices in this room"><ul><li><div class="tn-slot"><span class="tn-room">${h(run.id)}</span></div>${treeBranch(run, kids, null)}</li></ul></div>`;
+  const zoomButton = (by, label, text) => `<button type="button" data-act="tree-zoom" data-run="${h(run.id)}" data-by="${by}" aria-label="${label}">${text}</button>`;
   return `${staleBanner(run)}<section class="stage" style="margin-top:0">
     <div class="stage-head"><b class="tree-pct">${pct}%</b><span class="muted small">merged, ${merged} of ${plural(active.length, "slice")}${closed ? ` (${closed} closed, not counted)` : ""}</span><span class="grow"></span>
       <span class="muted small">${h(run.prs?.checkedAt ? `Checked on GitHub ${ago(run.prs.checkedAt)}` : "Not checked on GitHub yet")}</span>
@@ -604,9 +608,95 @@ const treeView = (run) => {
       <button type="button" class="btn ghost" data-act="prs-refresh" data-run="${h(run.id)}"${busy ? " disabled" : ""}>${busy ? "Checking…" : "Refresh"}</button></div>
     <div class="tree-bar" role="img" aria-label="${h(`${pct}% merged: ${parts.map(([l, n]) => `${n} ${LOOK_WORD[l].toLowerCase()}`).join(", ")}`)}">${bar}</div>
     <details class="tree-keys"><summary>Key</summary><div>${keys}</div></details>
-    <div class="tree-scroll"><nav class="tree${outline ? " outline" : ""}" aria-label="Slices in this room"><ul><li><div class="tn-slot"><span class="tn-room">${h(run.id)}</span></div>${treeBranch(run, kids, null)}</li></ul></nav></div>
+    ${outline ? `<div class="tree-scroll">${tree("tree outline")}</div>` : `<div class="tree-canvas" data-run="${h(run.id)}"><div class="tree-stage">${tree("tree")}</div>
+      <div class="tree-hint muted small">Drag or scroll to move · ⌘ or Ctrl + scroll, or pinch, to zoom</div>
+      <div class="tree-zoom" role="group" aria-label="Zoom">${zoomButton("0.8", "Zoom out", "−")}<span class="tree-zoom-pct" aria-live="polite">100%</span>${zoomButton("1.25", "Zoom in", "+")}
+        <button type="button" data-act="tree-fit" data-run="${h(run.id)}">Fit</button></div></div>`}
   </section>`;
 };
+
+// The top-down tree sits on a canvas that pans and zooms like a drawing tool: drag or scroll to move, ⌘ or Ctrl + scroll
+// (a trackpad pinch arrives as one) to zoom about the pointer. The camera is kept per room, so the stream's redraws keep it;
+// a room's first view fits the whole tree.
+const ZOOM_MIN = 0.2;
+const ZOOM_MAX = 2.5;
+const canvasOf = () => document.querySelector("#view .tree-canvas");
+const paintCam = (id) => {
+  const canvas = canvasOf();
+  const c = store.treeCam.get(id);
+  if (!canvas || !c) return;
+  canvas.querySelector(".tree-stage").style.transform = `translate(${c.x}px, ${c.y}px) scale(${c.k})`;
+  canvas.querySelector(".tree-zoom-pct").textContent = `${Math.round(c.k * 100)}%`;
+};
+const fitTree = (id) => {
+  const canvas = canvasOf();
+  const stage = canvas?.querySelector(".tree-stage");
+  if (!stage) return;
+  const [w, hgt] = [stage.offsetWidth, stage.offsetHeight]; // its size before the transform
+  const k = Math.max(ZOOM_MIN, Math.min(1, canvas.clientWidth / w, canvas.clientHeight / hgt));
+  store.treeCam.set(id, { k, x: (canvas.clientWidth - w * k) / 2, y: Math.max(0, (canvas.clientHeight - hgt * k) / 2) });
+};
+const placeTree = (run) => {
+  if (!canvasOf()) return;
+  if (!store.treeCam.has(run.id)) fitTree(run.id);
+  paintCam(run.id);
+};
+const zoomAt = (id, factor, px, py) => {
+  const c = store.treeCam.get(id);
+  if (!c) return;
+  const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, c.k * factor));
+  c.x = px - ((px - c.x) * k) / c.k; // the point under the pointer stays put
+  c.y = py - ((py - c.y) * k) / c.k;
+  c.k = k;
+  hidePop();
+  paintCam(id);
+};
+document.addEventListener("wheel", (ev) => {
+  const canvas = ev.target.closest?.(".tree-canvas");
+  const c = canvas && store.treeCam.get(canvas.dataset.run);
+  if (!c) return;
+  ev.preventDefault(); // the canvas takes the wheel, and ⌘/Ctrl + wheel would otherwise zoom the whole page
+  const unit = ev.deltaMode === 1 ? 16 : 1; // Firefox's mouse wheel counts lines
+  if (ev.ctrlKey || ev.metaKey) {
+    const r = canvas.getBoundingClientRect();
+    // capped, so a mouse wheel's notch (deltaY 100+) zooms about 1.27x while a pinch's small deltas stay smooth
+    const step = Math.max(-40, Math.min(40, ev.deltaY * unit));
+    zoomAt(canvas.dataset.run, Math.exp(-step * 0.006), ev.clientX - r.left, ev.clientY - r.top);
+  } else {
+    c.x -= ev.deltaX * unit;
+    c.y -= ev.deltaY * unit;
+    hidePop();
+    paintCam(canvas.dataset.run);
+  }
+}, { passive: false });
+let drag = null;
+let dragged = false; // the click that ends a drag started on a node must not open its PR
+document.addEventListener("pointerdown", (ev) => {
+  const canvas = ev.target.closest?.(".tree-canvas");
+  const c = canvas && !ev.target.closest(".tree-zoom") && ev.button === 0 && store.treeCam.get(canvas.dataset.run);
+  if (c) drag = { id: canvas.dataset.run, canvas, x: ev.clientX, y: ev.clientY, cx: c.x, cy: c.y, moved: false };
+});
+document.addEventListener("pointermove", (ev) => {
+  if (!drag) return;
+  const [dx, dy] = [ev.clientX - drag.x, ev.clientY - drag.y];
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  drag.moved = true;
+  drag.canvas.classList.add("dragging");
+  const c = store.treeCam.get(drag.id);
+  c.x = drag.cx + dx;
+  c.y = drag.cy + dy;
+  hidePop();
+  paintCam(drag.id);
+});
+document.addEventListener("pointerup", () => {
+  if (drag?.moved) {
+    drag.canvas.classList.remove("dragging");
+    dragged = true;
+    setTimeout(() => { dragged = false; }); // after the click this pointerup makes, if any
+  }
+  drag = null;
+});
+document.addEventListener("click", (ev) => { if (dragged) { ev.preventDefault(); ev.stopPropagation(); } }, true);
 // A node's card: the PR's state as the PRs tab's popover shows it, then links to the PR, the worker and the orchestrator.
 const nodeCardHtml = (run, t) => {
   const e = prFor(run, t);
@@ -1054,6 +1144,7 @@ const render = () => {
     const focused = document.activeElement?.closest?.("#view [data-stage]")?.dataset.stage;
     const strip = document.querySelector("#view .pipe")?.scrollLeft;
     document.getElementById("view").innerHTML = run ? VIEWS[route.view](run, route) : "";
+    if (run && route.view === "tree") placeTree(run);
     if (focused) document.querySelector(`#view [data-stage="${focused}"]`)?.focus();
     const pipe = document.querySelector("#view .pipe");
     if (strip && pipe) pipe.scrollLeft = strip; // a redraw must not rewind the phone's strip
@@ -1210,6 +1301,8 @@ document.addEventListener("click", (e) => {
   else if (act === "prs-filter") store.history = el.dataset.feature;
   else if (act === "prs-close") store.history = null;
   else if (act === "tree-outline") { store.treeOutline = !store.treeOutline; storage.set("build-room-tree", store.treeOutline ? "outline" : "tree"); }
+  else if (act === "tree-zoom") { const c = canvasOf(); return c && zoomAt(el.dataset.run, Number(el.dataset.by), c.clientWidth / 2, c.clientHeight / 2); }
+  else if (act === "tree-fit") { fitTree(el.dataset.run); return paintCam(el.dataset.run); }
   else return;
   render();
 });

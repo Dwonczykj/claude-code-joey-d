@@ -227,6 +227,15 @@
       .tree-keys > div { display: flex; flex-wrap: wrap; gap: 12px 22px; padding: 8px 0 4px; }
       .tree-key { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-2); }
       .tree-scroll { overflow-x: auto; padding: 18px 4px 28px; margin: 0 -4px; }
+      .tree-canvas { position: relative; height: min(72vh, 760px); overflow: hidden; border-radius: 18px; background: rgba(255, 255, 255, 0.35); border: 1px solid rgba(255, 255, 255, 0.7); touch-action: none; cursor: grab; user-select: none; }
+      .tree-canvas.dragging { cursor: grabbing; }
+      .tree-canvas a { -webkit-user-drag: none; }
+      .tree-stage { position: absolute; left: 0; top: 0; width: max-content; padding: 32px; transform-origin: 0 0; }
+      .tree-hint { position: absolute; left: 14px; right: 14px; top: 12px; pointer-events: none; }
+      .tree-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.95); box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12); }
+      .tree-zoom button { min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); font-size: 14px; font-weight: 700; cursor: pointer; }
+      .tree-zoom button:hover { background: rgba(15, 23, 42, 0.06); }
+      .tree-zoom-pct { min-width: 44px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-3); }
       .tree { display: flex; justify-content: center; min-width: max-content; }
       .tree ul { display: flex; justify-content: center; margin: 0; padding: 26px 0 0; position: relative; }
       .tree > ul { padding-top: 0; }
