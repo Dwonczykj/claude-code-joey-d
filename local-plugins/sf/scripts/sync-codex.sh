@@ -118,4 +118,4 @@ marketplace["plugins"].append(entry)
 path.write_text(json.dumps(marketplace, indent=2, ensure_ascii=False) + "\n")
 PY
 
-printf 'Synced SF skills to %s\nRestart Codex to load the synced package; install SF from Joey's local plugins marketplace if it is not installed yet.\n' "$plugin_dir"
+printf "Synced SF skills to %s\nRestart Codex to load the synced package; install SF from Joey's local plugins marketplace if it is not installed yet.\n" "$plugin_dir"
