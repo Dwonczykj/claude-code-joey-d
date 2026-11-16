@@ -70,6 +70,7 @@ const store = {
   allMerged: new Set(), // runs whose Merged stage shows every card, not the newest 12
   sheet: false, // the Board's inbox sheet is open
   revealed: null, // the open stage tile last scrolled into view
+  treeOutline: storage.get("build-room-tree") === "outline", // the Tree tab draws an indented outline, not a top-down tree
 };
 
 // ---------------------------------------------------------------- derived
@@ -189,7 +190,7 @@ const renderHead = (run, route) => {
   const runs = [...store.runs.values()];
   const badge = (n, warn) => (n ? `<span class="tab-n${warn ? " warn" : ""}">${n}</span>` : "");
   const tabs = [["board", "Board"], ["room", "Room", badge(run ? openQuestions(run).length : 0, true)], ["ledger", "Ledger"],
-    ["prs", "PRs", badge(run ? unmerged(run).length : 0)], ["linear", "Linear"]]
+    ["prs", "PRs", badge(run ? unmerged(run).length : 0)], ["tree", "Tree"], ["linear", "Linear"]]
     .map(([id, name, n = ""]) => `<a href="#${id}" class="${route.view === id || (id === "board" && route.view === "ticket") ? "on" : ""}">${name}${n}</a>`)
     .join("");
   const head = document.getElementById("head");
@@ -516,12 +517,118 @@ const prPopHtml = (e) => {
   }
   return `<b>#${h(e.number)} ${h(e.title)}</b>${rows.join("")}<div class="muted small" style="margin-top:6px">${h(e.state === "OPEN" && !e.ready ? "As of the last check on GitHub" : "")}</div>`;
 };
+// ---------------------------------------------------------------- tree
+// The room's slices (its tasks left out) as a tree: each under the slice it stacks on, else the "after" slice with the
+// longest chain behind it. A node shows its PR's state; a gold ring is CI still running, filled by the checks done.
+// scripts/room's slice_look and slice_parents apply the same rules to the tree `room prs --tree` prints for sf:status.
+const LOOK_WORD = { merged: "Merged", approved: "Open, approved", open: "Open", conflict: "Merge conflict", draft: "Draft", closed: "Closed", unbuilt: "Not built" };
+const LOOK_COLOUR = { merged: "var(--purple)", approved: "var(--green)", open: "#7cc79a", conflict: "#e8590c", draft: "#1e3a8a", unbuilt: "rgba(15, 23, 42, 0.14)" };
+const CIRCLE_A = "M21 18a3 3 0 1 1-6 0a3 3 0 1 1 6 0";
+const CIRCLE_B = "M9 6a3 3 0 1 1-6 0a3 3 0 1 1 6 0";
+const LOOK_ICON = {
+  merged: [CIRCLE_A, CIRCLE_B, "M6 21V9a9 9 0 0 0 9 9"],
+  open: ["M6.5 12h.01", "M12 12h.01", "M17.5 12h.01"],
+  approved: ["M5 12.5l4.5 4.5L19 7.5"],
+  closed: ["M7 7l10 10", "M17 7L7 17"],
+  conflict: [CIRCLE_A, CIRCLE_B, "M13 6h3a2 2 0 0 1 2 2v7", "M11 18H8a2 2 0 0 1-2-2V9", "M15.5 3.5L13 6l2.5 2.5", "M8.5 15.5L11 18l-2.5 2.5"],
+};
+const lookOf = (t, e) => {
+  if (!e) return DONE_STATES.has(t.state) ? "merged" : "unbuilt";
+  if (e.state === "MERGED" || e.state === "CLOSED") return e.state.toLowerCase();
+  if (e.mergeable === "CONFLICTING") return "conflict";
+  if (e.draft) return "draft";
+  const states = (e.reviews ?? []).map((r) => r.state);
+  return states.includes("APPROVED") && !states.includes("CHANGES_REQUESTED") ? "approved" : "open";
+};
+const sliceTree = (run) => {
+  const slices = ticketsOf(run).filter((t) => !isTask(t));
+  const byId = new Map(slices.map((t) => [t.id, t]));
+  const depth = new Map();
+  const depthOf = (id, seen = []) => {
+    if (!depth.has(id)) {
+      const t = byId.get(id);
+      const ups = [t.stacksOn, ...(t.after ?? [])].filter((x) => byId.has(x) && !seen.includes(x));
+      depth.set(id, 1 + Math.max(-1, ...ups.map((x) => depthOf(x, [...seen, id]))));
+    }
+    return depth.get(id);
+  };
+  const parentOf = (t) => (byId.has(t.stacksOn) ? t.stacksOn
+    : (t.after ?? []).filter((x) => byId.has(x)).reduce((best, x) => (best === null || depthOf(x) > depthOf(best) ? x : best), null));
+  const kids = new Map();
+  for (const t of slices) { const p = parentOf(t); kids.set(p, [...(kids.get(p) ?? []), t]); }
+  return { slices, kids };
+};
+const glyph = (look) => (LOOK_ICON[look]
+  ? `<svg viewBox="0 0 24 24" aria-hidden="true">${LOOK_ICON[look].map((d) => `<path d="${d}"></path>`).join("")}</svg>` : "");
+const treeNode = (run, t) => {
+  const e = prFor(run, t);
+  const look = lookOf(t, e);
+  const ci = e?.state === "OPEN" ? e.ci ?? {} : {};
+  const total = (ci.passed ?? 0) + (ci.failed ?? 0) + (ci.running ?? 0);
+  const ring = ci.running ? `<span class="tn-ring" style="--done:${Math.round((100 * (total - ci.running)) / total)}%"></span>` : "";
+  const inner = glyph(look) || `<span class="tn-text">${look === "draft" ? "D" : h(clip(t.title, 34))}</span>`;
+  const link = e ? `href="${h(webUrl(e.url))}" target="_blank" rel="noopener"` : `href="#ticket/${encodeURIComponent(t.id)}"`;
+  const label = `${e ? `#${e.number}` : t.id} ${t.title}: ${LOOK_WORD[look]}${ci.running ? ", CI running" : ""}`;
+  return `<a class="tn tn-${look}" ${link} data-node="${h(run.id)}|${h(t.id)}" aria-label="${h(label)}">${ring}${inner}</a>
+    <span class="tn-name">${h(t.title)}</span><span class="tn-meta">${h(e ? `#${e.number}` : t.id)}</span>`;
+};
+const treeBranch = (run, kids, id) => {
+  const list = kids.get(id) ?? [];
+  // A lone child is a stack: the outline draws it straight down rather than indenting it, so long chains fit a phone
+  return list.length ? `<ul${list.length === 1 ? ' class="stack"' : ""}>${list.map((t) => `<li><div class="tn-slot">${treeNode(run, t)}</div>${treeBranch(run, kids, t.id)}</li>`).join("")}</ul>` : "";
+};
+const NARROW = matchMedia("(max-width: 760px)");
+NARROW.addEventListener("change", () => render());
+const treeView = (run) => {
+  const { slices, kids } = sliceTree(run);
+  if (!slices.length) return `<div class="glass panel"><h2>No slices yet</h2><div class="muted">The tree draws the room's slices once tickets.json has some.</div></div>`;
+  const looks = slices.map((t) => [t, lookOf(t, prFor(run, t))]);
+  // A closed PR never merges and a probe is never meant to, so neither counts toward the percentage.
+  const active = looks.filter(([t, l]) => l !== "closed" && t.kind !== "probe").map(([, l]) => l);
+  const merged = active.filter((l) => l === "merged").length;
+  const closed = looks.filter(([, l]) => l === "closed").length;
+  const pct = active.length ? Math.round((100 * merged) / active.length) : 0;
+  const parts = ["merged", "approved", "open", "conflict", "draft", "unbuilt"].map((l) => [l, active.filter((x) => x === l).length]).filter(([, n]) => n);
+  const bar = parts.map(([l, n]) => `<span style="flex:${n};background:${LOOK_COLOUR[l]}" title="${n} ${LOOK_WORD[l].toLowerCase()}"></span>`).join("");
+  const keyItem = (l, extra = "", text = LOOK_WORD[l]) => `<span class="tree-key"><span class="tn tn-mini tn-${l}">${extra}${glyph(l) || `<span class="tn-text">${l === "draft" ? "D" : ""}</span>`}</span>${text}</span>`;
+  const keys = Object.keys(LOOK_WORD).map((l) => keyItem(l)).join("") + keyItem("approved", `<span class="tn-ring" style="--done:60%"></span>`, "CI running: the gold ring fills as checks finish");
+  const outline = store.treeOutline || NARROW.matches;
+  const busy = store.checking.has(run.id);
+  return `${staleBanner(run)}<section class="stage" style="margin-top:0">
+    <div class="stage-head"><b class="tree-pct">${pct}%</b><span class="muted small">merged, ${merged} of ${plural(active.length, "slice")}${closed ? ` (${closed} closed, not counted)` : ""}</span><span class="grow"></span>
+      <span class="muted small">${h(run.prs?.checkedAt ? `Checked on GitHub ${ago(run.prs.checkedAt)}` : "Not checked on GitHub yet")}</span>
+      ${NARROW.matches ? "" : `<button type="button" class="chip${store.treeOutline ? " on" : ""}" data-act="tree-outline" aria-pressed="${store.treeOutline}">Outline</button>`}
+      <button type="button" class="btn ghost" data-act="prs-refresh" data-run="${h(run.id)}"${busy ? " disabled" : ""}>${busy ? "Checking…" : "Refresh"}</button></div>
+    <div class="tree-bar" role="img" aria-label="${h(`${pct}% merged: ${parts.map(([l, n]) => `${n} ${LOOK_WORD[l].toLowerCase()}`).join(", ")}`)}">${bar}</div>
+    <details class="tree-keys"><summary>Key</summary><div>${keys}</div></details>
+    <div class="tree-scroll"><nav class="tree${outline ? " outline" : ""}" aria-label="Slices in this room"><ul><li><div class="tn-slot"><span class="tn-room">${h(run.id)}</span></div>${treeBranch(run, kids, null)}</li></ul></nav></div>
+  </section>`;
+};
+// A node's card: the PR's state as the PRs tab's popover shows it, then links to the PR, the worker and the orchestrator.
+const nodeCardHtml = (run, t) => {
+  const e = prFor(run, t);
+  const orch = run.tickets?.orchestrator ? { name: run.tickets.orchestrator, id: run.tickets.orchestratorSessionId } : null;
+  const [phrase, tone] = phraseOf(t, null);
+  const head = e ? prPopHtml(e)
+    : `<b>${h(t.title)}</b><div class="pp-line" style="color:${TONE[tone][1]}">No PR yet · ${h(phrase)}</div>${dependsLine(null, t) ? `<div class="pp-line" style="color:var(--ink-3)">${h(dependsLine(null, t))}</div>` : ""}`;
+  const links = [e && `<a class="btn ghost" style="display:inline-flex;align-items:center;text-decoration:none" href="${h(webUrl(e.url))}" target="_blank" rel="noopener">Open PR #${h(e.number)}</a>`,
+    sessionLink(t.session ? { name: t.session, id: t.sessionId } : null, "Worker"), sessionLink(orch, "Orchestrator"),
+    `<a href="#ticket/${encodeURIComponent(t.id)}">Ticket ${h(t.id)}</a>`].filter(Boolean).join("");
+  return `${head}<div class="pp-links">${links}</div>`;
+};
+
 const pop = document.getElementById("pr-pop");
+let popTimer = 0;
 const showPop = (el) => {
-  const [runId, key] = el.dataset.pr.split("|");
-  const e = prsOf(store.runs.get(runId) ?? {}).find((x) => x.key === key);
-  if (!e) return;
-  pop.innerHTML = prPopHtml(e);
+  clearTimeout(popTimer);
+  const node = el.dataset.node;
+  const [runId, key] = (node ?? el.dataset.pr).split("|");
+  const run = store.runs.get(runId) ?? {};
+  const t = node && ticketsOf(run).find((x) => x.id === key);
+  const e = !node && prsOf(run).find((x) => x.key === key);
+  if (!t && !e) return;
+  pop.innerHTML = t ? nodeCardHtml(run, t) : prPopHtml(e);
+  pop.classList.toggle("live", Boolean(t)); // a node's card has links, so it takes the mouse
   pop.classList.add("on");
   const r = el.getBoundingClientRect();
   const p = pop.getBoundingClientRect();
@@ -529,11 +636,24 @@ const showPop = (el) => {
   pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - p.width - 8))}px`;
   pop.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - p.height - 8)}px`;
 };
-const hidePop = () => pop.classList.remove("on");
-document.addEventListener("mouseover", (ev) => { const el = ev.target.closest?.("[data-pr]"); if (el) showPop(el); });
-document.addEventListener("mouseout", (ev) => { if (ev.target.closest?.("[data-pr]")) hidePop(); });
-document.addEventListener("focusin", (ev) => { const el = ev.target.closest?.("[data-pr]"); if (el) showPop(el); });
-document.addEventListener("focusout", hidePop);
+const hidePop = () => { clearTimeout(popTimer); pop.classList.remove("on"); };
+const hidePopSoon = () => { clearTimeout(popTimer); popTimer = setTimeout(hidePop, 300); }; // time to reach a card's links
+const POP_TARGET = "[data-pr],[data-node]";
+document.addEventListener("mouseover", (ev) => {
+  if (pop.contains(ev.target)) return clearTimeout(popTimer);
+  const el = ev.target.closest?.(POP_TARGET);
+  if (el) showPop(el);
+});
+document.addEventListener("mouseout", (ev) => {
+  if (pop.contains(ev.target) || ev.target.closest?.("[data-node]")) hidePopSoon();
+  else if (ev.target.closest?.("[data-pr]")) hidePop();
+});
+document.addEventListener("focusin", (ev) => {
+  if (pop.contains(ev.target)) return clearTimeout(popTimer);
+  const el = ev.target.closest?.(POP_TARGET);
+  if (el) showPop(el);
+});
+document.addEventListener("focusout", (ev) => { if (!pop.contains(ev.relatedTarget)) hidePopSoon(); });
 document.addEventListener("scroll", hidePop, true);
 
 const boardView = (run) => {
@@ -872,7 +992,7 @@ const updateTurn = () => {
 const parseRoute = () => {
   const [view, id] = location.hash.replace(/^#/, "").split("/");
   if (view === "ticket" && id) return { view, id: decodeURIComponent(id) };
-  return { view: ["room", "ledger", "prs", "linear"].includes(view) ? view : "board" };
+  return { view: ["room", "ledger", "prs", "tree", "linear"].includes(view) ? view : "board" };
 };
 // The Linear tab: the room's tickets grouped by the Linear issue behind each, with progress as tickets done out of
 // all. The issue comes from the ticket (linearIssue, then its factory `linear` id), else the PRE id in its branch,
@@ -914,7 +1034,7 @@ const linearView = (run) => {
   });
   return `<section class="stage"><div class="stage-head"><h2>Linear issues</h2><span class="muted small">Progress is this room's tickets done out of all; Linear itself is not read.</span></div><div class="sgrid">${cards.join("")}</div></section>`;
 };
-const VIEWS = { linear: linearView, board: boardView, ticket: ticketView, ledger: ledgerView, room: roomView, prs: prsView };
+const VIEWS = { linear: linearView, board: boardView, ticket: ticketView, ledger: ledgerView, room: roomView, prs: prsView, tree: treeView };
 
 let queued = false;
 const render = () => {
@@ -1086,6 +1206,7 @@ document.addEventListener("click", (e) => {
   else if (act === "prs-history") store.history = "";
   else if (act === "prs-filter") store.history = el.dataset.feature;
   else if (act === "prs-close") store.history = null;
+  else if (act === "tree-outline") { store.treeOutline = !store.treeOutline; storage.set("build-room-tree", store.treeOutline ? "outline" : "tree"); }
   else return;
   render();
 });

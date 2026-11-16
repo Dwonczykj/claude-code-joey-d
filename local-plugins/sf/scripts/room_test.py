@@ -818,4 +818,32 @@ for kind, tier_text in doc_rows.items():
     want = {"claude-sonnet-5-5": "Sonnet 5.5", "claude-opus-5-5": "Opus 5.5"}[model]
     assert tier_text == f"{want} {effort}", (kind, tier_text)
 
+# room prs --tree: each slice under what it stacks on, else its deepest "after"; PR state from prs.json; tasks left out.
+with tempfile.TemporaryDirectory() as d:
+    tickets = [
+        {"id": "a", "title": "Model", "state": "MERGED", "pr": 1},
+        {"id": "b", "title": "Endpoints", "state": "PR", "after": ["a"], "pr": 2},
+        {"id": "c", "title": "Dialog", "state": "PR", "after": ["a", "b"], "pr": 3, "linearIssue": "PRE-9"},
+        {"id": "d", "title": "Old pull", "state": "PR", "stacksOn": "a", "pr": 4},
+        {"id": "e", "title": "Analytics", "state": "NOT STARTED", "after": ["c"]},
+        {"id": "p", "title": "Probe", "state": "NOT STARTED", "kind": "probe", "after": ["a"]},
+        {"id": "x", "title": "Explore", "state": "DONE", "kind": "explore"},
+    ]
+    write(os.path.join(d, "tickets.json"), json.dumps({"tickets": tickets, "linear": {"project": {"url": "https://linear.app/acme/project/p"}}}))
+    pr = lambda n, t, **kw: {"key": f"o/r#{n}", "number": n, "url": f"https://github.com/o/r/pull/{n}", "ticket": t, "state": "OPEN", **kw}
+    write(os.path.join(d, "prs.json"), json.dumps({"prs": [
+        pr(1, "a", state="MERGED"), pr(2, "b", mergeable="CONFLICTING", draft=True),
+        pr(3, "c", reviews=[{"login": "r", "state": "APPROVED"}], ci={"passed": 3, "failed": 0, "running": 1}),
+        pr(4, "d", state="CLOSED")]}))
+    out = subprocess.run([sys.executable, ROOM, "prs", "--dir", d, "--cached", "--tree"], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    lines = out.stdout.splitlines()
+    assert lines[0] == "**25% merged** (1 of 4 slices; 1 closed, not counted)", lines[0]  # probe and closed left out
+    assert "- ● [#1](https://github.com/o/r/pull/1) Model: merged" in lines
+    assert "  - ⚠ [#2](https://github.com/o/r/pull/2) Endpoints: merge conflict" in lines  # conflict beats draft
+    assert "    - ✓ [#3](https://github.com/o/r/pull/3) Dialog ([PRE-9](https://linear.app/acme/issue/PRE-9)): open, approved, CI running (3 of 4 checks done)" in lines
+    assert "      - ◌ Analytics: not built" in lines
+    assert "  - ✕ [#4](https://github.com/o/r/pull/4) Old pull: closed" in lines
+    assert not any("Explore" in line for line in lines)
+
 print("room_test: ok")

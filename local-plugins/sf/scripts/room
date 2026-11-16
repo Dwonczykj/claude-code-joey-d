@@ -1107,6 +1107,8 @@ def prs(a):
             print("room prs: another room prs is checking GitHub for this room; left it to finish")
             return 0
         code = 0 if a.cached else check_prs(a.dir)
+        if a.tree:
+            return print_tree(a.dir)
         return print_prs(a.dir) if a.print or a.cached else code
     finally:
         os.close(lock)
@@ -1206,6 +1208,96 @@ def print_prs(d):
                                          for t in todo))
     merged = sum(1 for e in rows if e.get("state") == "MERGED")
     print(f"\n{merged} merged, not listed.")
+    return 0
+
+
+TREE_ICON = {"merged": "●", "approved": "✓", "open": "○", "conflict": "⚠", "draft": "◐", "closed": "✕", "unbuilt": "◌"}
+TREE_WORD = {"merged": "merged", "approved": "open, approved", "open": "open", "conflict": "merge conflict",
+             "draft": "draft", "closed": "closed", "unbuilt": "not built"}
+
+
+def slice_look(t, e):
+    """A slice's state for the tree, one of TREE_ICON's keys. room.js lookOf applies the same rule."""
+    if not e:
+        return "merged" if t.get("state") in ("MERGED", "DONE") else "unbuilt"
+    if e.get("state") in ("MERGED", "CLOSED"):
+        return e["state"].lower()
+    if e.get("mergeable") == "CONFLICTING":
+        return "conflict"
+    if e.get("draft"):
+        return "draft"
+    states = [r.get("state") for r in e.get("reviews") or []]
+    return "approved" if "APPROVED" in states and "CHANGES_REQUESTED" not in states else "open"
+
+
+def slice_parents(tickets):
+    """{id: parent id or None}: the slice it stacks on, else the "after" slice with the longest chain behind it.
+    room.js parentOf applies the same rule."""
+    ids = {t["id"]: t for t in tickets}
+    depth = {}
+
+    def depth_of(i, seen=()):
+        if i not in depth:
+            t = ids[i]
+            ups = [x for x in [t.get("stacksOn"), *(t.get("after") or [])] if x in ids and x not in seen]
+            depth[i] = 1 + max((depth_of(x, (*seen, i)) for x in ups), default=-1)
+        return depth[i]
+
+    return {t["id"]: t["stacksOn"] if t.get("stacksOn") in ids
+            else max((x for x in t.get("after") or [] if x in ids), key=depth_of, default=None) for t in tickets}
+
+
+def print_tree(d):
+    """The room's slices as a nested markdown list for sf:status: each under what it builds on, with its PR's state."""
+    try:
+        with open(os.path.join(d, "prs.json"), encoding="utf-8") as f:
+            rows = json.load(f).get("prs") or []
+    except (OSError, ValueError):
+        rows = []
+    try:
+        with open(os.path.join(d, "tickets.json"), encoding="utf-8") as f:
+            project = ((json.load(f).get("linear") or {}).get("project") or {})
+    except (OSError, ValueError, AttributeError):
+        project = {}
+    tickets = [t for t in raw_tickets(d) if t.get("kind", "slice") not in TASKS and t.get("id")]
+    by_ticket = {e.get("ticket"): e for e in rows if e.get("ticket")}
+    by_number = {str(e.get("number")): e for e in rows}
+    pr_of = lambda t: by_ticket.get(t["id"]) or by_number.get(str(t.get("pr")))
+    urls = [e.get("linearUrl") for e in rows] + [project.get("url") if isinstance(project, dict) else None]
+    workspace = next((m.group(1) for u in urls if u for m in [re.search(r"linear\.app/([\w.-]+)/", u)] if m), None)
+
+    looks = {t["id"]: slice_look(t, pr_of(t)) for t in tickets}
+    # A closed PR never merges and a probe is never meant to, so neither counts toward the percentage.
+    active = [looks[t["id"]] for t in tickets if looks[t["id"]] != "closed" and t.get("kind") != "probe"]
+    merged = active.count("merged")
+    closed = list(looks.values()).count("closed")
+    pct = round(100 * merged / len(active)) if active else 0
+    print(f"**{pct}% merged** ({merged} of {len(active)} slices"
+          + (f"; {closed} closed, not counted" if closed else "") + ")\n")
+
+    parents = slice_parents(tickets)
+    kids = {}
+    for t in tickets:
+        kids.setdefault(parents[t["id"]], []).append(t)
+
+    def walk(parent, indent):
+        for t in kids.get(parent, []):
+            e, look = pr_of(t), looks[t["id"]]
+            word = TREE_WORD[look]
+            ci = (e or {}).get("ci") or {}
+            if (e or {}).get("state") == "OPEN" and ci.get("running"):
+                total = ci.get("passed", 0) + ci.get("failed", 0) + ci["running"]
+                word += f", CI running ({total - ci['running']} of {total} checks done)"
+            elif (e or {}).get("state") == "OPEN" and ci.get("failed"):
+                word += f", {ci['failed']} {'check' if ci['failed'] == 1 else 'checks'} failing"
+            pr = f"[#{e['number']}]({e['url']}) " if e and e.get("url") else f"#{t['pr']} " if t.get("pr") else ""
+            lin = t.get("linearIssue") or t.get("linear")
+            lin = f" ([{lin}](https://linear.app/{workspace}/issue/{lin}))" if lin and workspace else f" ({lin})" if lin else ""
+            print(f"{'  ' * indent}- {TREE_ICON[look]} {pr}{t['title']}{lin}: {word}")
+            walk(t["id"], indent + 1)
+
+    walk(None, 0)
+    print(f"\n{'  '.join(f'{TREE_ICON[k]} {v}' for k, v in TREE_WORD.items())}")
     return 0
 
 
@@ -1314,6 +1406,7 @@ def main(argv=None):
     pp = cmd("prs", "read each ticket's PR from GitHub into prs.json, with the merge order; no polling", ticket=False)
     pp.add_argument("--print", action="store_true", help="then print open PRs and unbuilt tickets as markdown")
     pp.add_argument("--cached", action="store_true", help="print prs.json without asking GitHub")
+    pp.add_argument("--tree", action="store_true", help="then print the slices as a tree with each PR's state, for sf:status")
 
     a = p.parse_args(argv)
     return {"log": log, "ask": ask, "signoff": signoff, "start": start, "render": render, "tier": tier,
